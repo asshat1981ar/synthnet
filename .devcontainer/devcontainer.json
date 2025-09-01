@@ -1,0 +1,78 @@
+{
+  "name": "SynthNet AI Development Environment",
+  "image": "mcr.microsoft.com/devcontainers/universal:2-linux",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.12"
+    },
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "17"
+    },
+    "ghcr.io/devcontainers/features/android-sdk:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "18"
+    },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.pylint",
+        "ms-python.black-formatter",
+        "ms-python.mypy-type-checker",
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "ms-vscode.vscode-ai",
+        "google.generative-ai-studio",
+        "ms-vscode-remote.remote-containers",
+        "ms-toolsai.jupyter",
+        "ms-kotlin.kotlin",
+        "vscjava.vscode-java-pack",
+        "redhat.vscode-yaml",
+        "ms-vscode.vscode-json"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python3",
+        "python.formatting.provider": "black",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "github.copilot.enable": {
+          "*": true,
+          "yaml": true,
+          "plaintext": true,
+          "markdown": true,
+          "python": true,
+          "kotlin": true,
+          "java": true,
+          "json": true
+        },
+        "github.copilot.advanced": {
+          "listCount": 10,
+          "inlineSuggestEnable": true
+        },
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+        },
+        "files.associations": {
+          "*.kt": "kotlin",
+          "*.py": "python"
+        }
+      }
+    }
+  },
+  "postCreateCommand": "pip install -r requirements.txt && echo 'SynthNet AI Development Environment Ready! 🚀'",
+  "postStartCommand": "echo '🤖 Welcome to SynthNet AI Development Environment' && echo '🔥 FORGE Workflow System Active' && python3 --version && java -version",
+  "remoteUser": "codespace",
+  "containerEnv": {
+    "SYNTHNET_ENV": "development",
+    "AI_INTEGRATION": "enabled",
+    "CLAUDE_CODE": "enabled",
+    "GEMINI_CLI": "enabled",
+    "COPILOT": "enabled"
+  },
+  "mounts": [
+    "source=${localWorkspaceFolder}/.git,target=/workspaces/synthnet/.git,type=bind,consistency=cached"
+  ]
+}

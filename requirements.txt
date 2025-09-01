@@ -1,0 +1,72 @@
+# AI and Machine Learning Dependencies
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+
+# Async and Concurrency
+asyncio-throttle>=1.0.0
+aiofiles>=23.0.0
+aiohttp>=3.8.0
+
+# Database and Storage
+sqlite3  # Built-in with Python
+sqlalchemy>=2.0.0
+alembic>=1.11.0
+
+# Development and Code Quality Tools
+pylint>=2.17.0
+black>=23.0.0
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+mypy>=1.5.0
+isort>=5.12.0
+flake8>=6.0.0
+
+# AI Integration Tools
+openai>=1.0.0  # For OpenAI API integration
+anthropic>=0.7.0  # For Claude API integration
+google-generativeai>=0.3.0  # For Gemini integration
+
+# Workflow and Automation
+schedule>=1.2.0
+watchdog>=3.0.0
+rich>=13.0.0  # For beautiful terminal output
+typer>=0.9.0  # For CLI applications
+
+# Network and API
+requests>=2.31.0
+httpx>=0.24.0
+fastapi>=0.100.0  # For API development
+uvicorn>=0.23.0   # ASGI server
+
+# Data Processing and Analysis
+jsonschema>=4.18.0
+pyyaml>=6.0.0
+toml>=0.10.0
+click>=8.1.0
+
+# Performance and Monitoring
+psutil>=5.9.0
+memory-profiler>=0.60.0
+line-profiler>=4.0.0
+
+# Security
+cryptography>=41.0.0
+bcrypt>=4.0.0
+
+# Documentation
+sphinx>=7.0.0
+mkdocs>=1.5.0
+mkdocs-material>=9.0.0
+
+# Testing and Mocking
+pytest-mock>=3.11.0
+responses>=0.23.0
+freezegun>=1.2.0
+
+# Android Development Support (Python side)
+lxml>=4.9.0  # For XML processing
+requests-toolbelt>=1.0.0
