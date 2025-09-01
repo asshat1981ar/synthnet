@@ -544,7 +544,14 @@ class MCPProductionAgent:
         
         # Save report
         report_path = self.output_path / f"research-report-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
-        report_path.write_text(json.dumps(report, indent=2))
+        
+        # Custom JSON encoder for datetime objects
+        def json_serializer(obj):
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+        
+        report_path.write_text(json.dumps(report, indent=2, default=json_serializer))
         
         logger.info(f"🎉 Workflow complete! Report saved: {report_path}")
         logger.info(f"📈 Summary: {report['summary']}")

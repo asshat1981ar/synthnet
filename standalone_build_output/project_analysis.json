@@ -1,0 +1,36 @@
+{
+  "project_path": "/data/data/com.termux/files/home/synthnet",
+  "timestamp": "2025-09-01T03:43:29.292931",
+  "directories": {
+    "app": {
+      "exists": true,
+      "files": 186
+    },
+    "generated-servers": {
+      "exists": true,
+      "files": 14
+    },
+    "mcp-research-output": {
+      "exists": true,
+      "files": 4
+    },
+    "synthnet-mcp-ecosystem": {
+      "exists": true,
+      "files": 4
+    }
+  },
+  "file_types": {
+    "kotlin": 95,
+    "java": 0,
+    "xml": 13,
+    "python": 32,
+    "gradle": 0
+  },
+  "android_project": {
+    "has_app_dir": true,
+    "has_gradlew": true,
+    "has_build_gradle": false,
+    "has_app_build_gradle": false,
+    "has_manifest": true
+  }
+}

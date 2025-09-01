@@ -6,3 +6,14 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") version "1.9.22" apply false
 }
 
+tasks.register("allKtlintCheck") {
+    dependsOn(subprojects.map { "${it.path}:ktlintCheck" })
+}
+
+tasks.register("allLintDebug") {
+    dependsOn(subprojects.map { "${it.path}:lintDebug" })
+}
+
+tasks.register("allTestDebugUnitTest") {
+    dependsOn(subprojects.map { "${it.path}:testDebugUnitTest" })
+}

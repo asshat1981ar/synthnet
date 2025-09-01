@@ -4,10 +4,10 @@ on:
   push:
     branches: [ main, develop ]
     paths: 
-      - 'app/src/main/java/**/*AI*.kt'
-      - 'app/src/main/java/**/*ai*.kt'
-      - 'app/src/main/java/**/domain/ai/**'
-      - 'app/src/main/java/**/protocol/**'
+      - 'domain/src/main/java/**/*AI*.kt'
+      - 'domain/src/main/java/**/*ai*.kt'
+      - 'domain/src/main/java/**/domain/ai/**'
+      - 'domain/src/main/java/**/protocol/**'
   pull_request:
     branches: [ main, develop ]
     paths:
@@ -69,31 +69,7 @@ jobs:
     - name: Claude Code Analysis
       run: |
         claude-code analyze \
-          --path ./app/src/main/java/com/synthnet/aiapp/domain/ai/ \
-          --output ./reports/claude-analysis.json \
-          --format json \
-          --depth comprehensive \
-          --include-suggestions \
-          --focus performance,security,architecture
-      env:
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
-    - name: Gemini Code Review
-      run: |
-        gemini review \
-          --input ./app/src/main/java/com/synthnet/aiapp/ \
-          --output ./reports/gemini-review.json \
-          --model gemini-pro \
-          --focus code-quality,best-practices,optimization \
-          --format json
-      env:
-        GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}
-
-    - name: Copilot Code Suggestions
-      run: |
-        gh copilot suggest \
-          --type code \
-          --input-file ./app/src/main/java/com/synthnet/aiapp/domain/ai/SemanticVoTEngine.kt \
+          --path ./domain/src/main/java/com/synthnet/aiapp/domain/ai/ \n          --output ./reports/claude-analysis.json \n          --format json \n          --depth comprehensive \n          --include-suggestions \n          --focus performance,security,architecture\n      env:\n        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}\n\n    - name: Gemini Code Review\n      run: |\n        gemini review \n          --input ./domain/src/main/java/com/synthnet/aiapp/ \n          --output ./reports/gemini-review.json \n          --model gemini-pro \n          --focus code-quality,best-practices,optimization \n          --format json\n      env:\n        GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}\n\n    - name: Copilot Code Suggestions\n      run: |\n        gh copilot suggest \n          --type code \n          --input-file ./domain/src/main/java/com/synthnet/aiapp/domain/ai/SemanticVoTEngine.kt \
           --output ./reports/copilot-suggestions.json
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -224,9 +200,9 @@ jobs:
           --check-for prompt-injection,model-poisoning,data-leakage
 
     - name: Claude security review
-      run: |
+      run: | \
         claude-code security-review \
-          --path ./app/src/main/java/com/synthnet/aiapp/domain/ai/ \
+          --path ./domain/src/main/java/com/synthnet/aiapp/domain/ai/ \ \
           --output ./reports/claude-security.json \
           --focus ai-security,data-privacy,prompt-safety
       env:
@@ -257,7 +233,7 @@ jobs:
     - name: Generate AI component documentation
       run: |
         claude-code document \
-          --path ./app/src/main/java/com/synthnet/aiapp/domain/ai/ \
+          --path ./domain/src/main/java/com/synthnet/aiapp/domain/ai/ \
           --output ./docs/ai-components/ \
           --format markdown \
           --include-examples \
@@ -269,7 +245,7 @@ jobs:
     - name: Generate API documentation with Gemini
       run: |
         gemini generate-docs \
-          --input ./app/src/main/java/com/synthnet/aiapp/domain/ai/ \
+          --input ./domain/src/main/java/com/synthnet/aiapp/domain/ai/ \
           --output ./docs/api/ \
           --format openapi \
           --include-examples \

@@ -1,0 +1,14 @@
+{
+  "servers": [
+    {
+      "name": "android-dev-server",
+      "category": "development",
+      "description": "Android development workflow automation",
+      "path": "/data/data/com.termux/files/home/synthnet/generated-servers/android-dev-server",
+      "status": "active",
+      "quality_score": 95,
+      "tools": 13
+    }
+  ],
+  "last_updated": "2025-09-01T03:35:22.244370"
+}

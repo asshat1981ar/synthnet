@@ -1,0 +1,40 @@
+{
+  "started_at": "2025-09-01T03:40:35.126344",
+  "current_step": 6,
+  "total_steps": 6,
+  "completed_steps": [],
+  "errors": [
+    {
+      "step": 1,
+      "error": "Step 1 failed: No module named 'mcp'",
+      "timestamp": "2025-09-01T03:40:35.159722"
+    },
+    {
+      "step": 2,
+      "error": "Step 2 failed: No module named 'mcp'",
+      "timestamp": "2025-09-01T03:40:35.160918"
+    },
+    {
+      "step": 3,
+      "error": "Step 3 failed: No module named 'mcp'",
+      "timestamp": "2025-09-01T03:40:35.161718"
+    },
+    {
+      "step": 4,
+      "error": "Step 4 failed: No module named 'mcp'",
+      "timestamp": "2025-09-01T03:40:35.162470"
+    },
+    {
+      "step": 5,
+      "error": "Step 5 failed: No module named 'mcp'",
+      "timestamp": "2025-09-01T03:40:35.163301"
+    },
+    {
+      "step": 6,
+      "error": "Step 6 failed: No module named 'mcp'",
+      "timestamp": "2025-09-01T03:40:35.164044"
+    }
+  ],
+  "artifacts": [],
+  "completed_at": "2025-09-01T03:40:35.164084"
+}

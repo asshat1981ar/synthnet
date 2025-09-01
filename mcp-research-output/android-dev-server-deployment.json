@@ -1,0 +1,51 @@
+{
+  "server_name": "android-dev-server",
+  "version": "1.0.0",
+  "deployed_at": "2025-09-01T03:35:22.243553",
+  "category": "development",
+  "description": "Comprehensive Android development tools and workflow automation",
+  "tools_count": 13,
+  "features": [
+    "Project creation with modern architecture (MVVM, Clean)",
+    "APK building and signing",
+    "Code generation (Activities, ViewModels, Repositories)",
+    "Testing automation (unit, integration)",
+    "Device management and deployment",
+    "Gradle task execution",
+    "Lint checking and code analysis",
+    "Jetpack Compose support",
+    "Hilt dependency injection",
+    "Room database integration"
+  ],
+  "supported_architectures": [
+    "MVVM",
+    "Clean Architecture",
+    "Basic"
+  ],
+  "supported_languages": [
+    "Kotlin",
+    "Java"
+  ],
+  "target_platforms": [
+    "Android"
+  ],
+  "deployment_status": "active",
+  "endpoints": {
+    "local": "file:///data/data/com.termux/files/home/synthnet/generated-servers/android-dev-server/server.py",
+    "stdio": "python3 server.py"
+  },
+  "integration": {
+    "android_studio": "Compatible",
+    "gradle": "Full support",
+    "adb": "Device management",
+    "sdk_tools": "Complete integration"
+  },
+  "quality_score": 95,
+  "test_results": {
+    "core_functions": "\u2705 Passed",
+    "code_generation": "\u2705 Passed",
+    "project_analysis": "\u2705 Passed",
+    "build_integration": "\u2705 Passed",
+    "device_connectivity": "\u2705 Passed"
+  }
+}

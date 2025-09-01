@@ -1,0 +1,24 @@
+╭───────────────────────────────────────────────────╮
+│ ✻ Welcome to Claude Code!                         │
+│                                                   │
+│   /help for help, /status for your current setup  │
+│                                                   │
+│   cwd: /data/data/com.termux/files/home/synthnet  │
+╰───────────────────────────────────────────────────╯
+
+> resume
+  ⎿  5-hour limit reached ∙ resets 8am
+     /upgrade to increase your usage limit.
+
+> /permissions 
+  ⎿  (no content)
+
+> /agents 
+  ⎿  (no content)
+
+> /hooks 
+  ⎿  (no content)
+
+> /doctor 
+  ⎿  (no content)
+

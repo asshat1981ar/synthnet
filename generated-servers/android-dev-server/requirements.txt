@@ -1,0 +1,9 @@
+mcp>=0.1.0
+asyncio
+typing
+pathlib
+subprocess
+tempfile
+shutil
+json
+os

@@ -16,3 +16,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "SynthNet AI App"
 include(":app")
+include(":data")
+include(":domain")
+include(":presentation")
