@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SynthNet AI</string>
+    <string name="welcome_message">Welcome to SynthNet AI</string>
+    <string name="agent_orchestration">Agent Orchestration</string>
+    <string name="collaboration">Collaboration</string>
+    <string name="analytics">Analytics</string>
+</resources>

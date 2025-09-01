@@ -1,0 +1,183 @@
+[
+  {
+    "config_name": "baseline",
+    "metrics": {
+      "cycle_time": 3.8763,
+      "throughput": 0.22211903103474961,
+      "quality_score": 0.656869815,
+      "resource_utilization": 0.7843709999999999,
+      "bottleneck_factor": 2.344632768361582,
+      "emergence_rate": 0.695015565
+    },
+    "optimization_score": 0.5176631540609086
+  },
+  {
+    "config_name": "speed_optimization",
+    "metrics": {
+      "cycle_time": 3.4870275,
+      "throughput": 0.2604367186665434,
+      "quality_score": 0.69284125725,
+      "resource_utilization": 0.8273246499999999,
+      "bottleneck_factor": 2.606374627100016,
+      "emergence_rate": 0.695015565
+    },
+    "optimization_score": 0.5509446240826824,
+    "config_details": {
+      "name": "speed_optimization",
+      "PROMPT_ENGINEER": {
+        "time_multiplier": 0.8,
+        "completion_multiplier": 1.1
+      },
+      "TOOL_COMPOSER": {
+        "time_multiplier": 0.7,
+        "completion_multiplier": 1.2
+      },
+      "CREATOR": {
+        "time_multiplier": 0.6,
+        "completion_multiplier": 1.15
+      },
+      "OPTIMIZER": {
+        "time_multiplier": 0.75,
+        "completion_multiplier": 1.1
+      }
+    }
+  },
+  {
+    "config_name": "quality_optimization",
+    "metrics": {
+      "cycle_time": 3.8345279999999997,
+      "throughput": 0.22577746205008803,
+      "quality_score": 0.6691056228000001,
+      "resource_utilization": 0.8406865375000001,
+      "bottleneck_factor": 2.344632768361582,
+      "emergence_rate": 0.75048803352
+    },
+    "optimization_score": 0.5394804067015053,
+    "config_details": {
+      "name": "quality_optimization",
+      "VALIDATOR": {
+        "error_multiplier": 0.5,
+        "completion_multiplier": 1.05
+      },
+      "ANALYZER": {
+        "error_multiplier": 0.6,
+        "learning_multiplier": 1.2
+      },
+      "META_LEARNER": {
+        "error_multiplier": 0.4,
+        "learning_multiplier": 1.3
+      },
+      "EMERGENCE_DETECTOR": {
+        "error_multiplier": 0.7,
+        "learning_multiplier": 1.15
+      }
+    }
+  },
+  {
+    "config_name": "collaboration_enhancement",
+    "metrics": {
+      "cycle_time": 3.8752380000000004,
+      "throughput": 0.22557324221118807,
+      "quality_score": 0.7327671949702499,
+      "resource_utilization": 0.8048299050000001,
+      "bottleneck_factor": 2.344632768361582,
+      "emergence_rate": 0.7717883159745
+    },
+    "optimization_score": 0.5530755816832807,
+    "config_details": {
+      "name": "collaboration_enhancement",
+      "ORCHESTRATOR": {
+        "collaboration_multiplier": 1.3,
+        "completion_multiplier": 1.1
+      },
+      "META_LEARNER": {
+        "collaboration_multiplier": 1.2,
+        "learning_multiplier": 1.1
+      },
+      "PROMPT_ENGINEER": {
+        "collaboration_multiplier": 1.25,
+        "completion_multiplier": 1.05
+      },
+      "VALIDATOR": {
+        "collaboration_multiplier": 1.15,
+        "error_multiplier": 0.9
+      }
+    }
+  },
+  {
+    "config_name": "emergence_acceleration",
+    "metrics": {
+      "cycle_time": 3.3506298,
+      "throughput": 0.25962283269849745,
+      "quality_score": 0.684702430724,
+      "resource_utilization": 0.90495697,
+      "bottleneck_factor": 1.8820861678004532,
+      "emergence_rate": 0.8188250818280001
+    },
+    "optimization_score": 0.5779580426494314,
+    "config_details": {
+      "name": "emergence_acceleration",
+      "EMERGENCE_DETECTOR": {
+        "time_multiplier": 0.6,
+        "learning_multiplier": 1.4,
+        "error_multiplier": 0.8
+      },
+      "TRANSCENDENCE_AGENT": {
+        "time_multiplier": 0.7,
+        "learning_multiplier": 1.5,
+        "error_multiplier": 0.7
+      },
+      "META_LEARNER": {
+        "learning_multiplier": 1.3,
+        "collaboration_multiplier": 1.2
+      },
+      "ANALYZER": {
+        "learning_multiplier": 1.2,
+        "completion_multiplier": 1.1
+      }
+    }
+  },
+  {
+    "config_name": "balanced_optimization",
+    "metrics": {
+      "cycle_time": 3.6858513999999998,
+      "throughput": 0.23958914892770772,
+      "quality_score": 0.6971706602951999,
+      "resource_utilization": 0.8163725504999999,
+      "bottleneck_factor": 2.462177395431623,
+      "emergence_rate": 0.729823026996
+    },
+    "optimization_score": 0.5460014585784277,
+    "config_details": {
+      "name": "balanced_optimization",
+      "PROMPT_ENGINEER": {
+        "time_multiplier": 0.9,
+        "completion_multiplier": 1.05,
+        "error_multiplier": 0.95
+      },
+      "TOOL_COMPOSER": {
+        "time_multiplier": 0.85,
+        "completion_multiplier": 1.1,
+        "collaboration_multiplier": 1.05
+      },
+      "CREATOR": {
+        "time_multiplier": 0.8,
+        "completion_multiplier": 1.08,
+        "learning_multiplier": 1.1
+      },
+      "OPTIMIZER": {
+        "time_multiplier": 0.9,
+        "error_multiplier": 0.9,
+        "learning_multiplier": 1.05
+      },
+      "VALIDATOR": {
+        "error_multiplier": 0.8,
+        "collaboration_multiplier": 1.1
+      },
+      "ORCHESTRATOR": {
+        "collaboration_multiplier": 1.15,
+        "completion_multiplier": 1.03
+      }
+    }
+  }
+]
