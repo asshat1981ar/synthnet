@@ -1,0 +1,171 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-server-config
+  labels:
+    app: mcp-server
+    component: config
+data:
+  # Application configuration
+  app.yml: |
+    server:
+      host: "0.0.0.0"
+      port: 8000
+      workers: 4
+      timeout: 30
+      keepalive: 2
+      max_requests: 1000
+      max_requests_jitter: 50
+    
+    logging:
+      version: 1
+      disable_existing_loggers: false
+      formatters:
+        standard:
+          format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+        json:
+          format: "%(asctime)s %(name)s %(levelname)s %(message)s"
+          class: pythonjsonlogger.jsonlogger.JsonFormatter
+      handlers:
+        default:
+          level: INFO
+          formatter: json
+          class: logging.StreamHandler
+          stream: ext://sys.stdout
+      loggers:
+        "":
+          handlers: [default]
+          level: INFO
+          propagate: false
+        uvicorn.error:
+          level: INFO
+        uvicorn.access:
+          handlers: [default]
+          level: INFO
+          propagate: false
+    
+    monitoring:
+      enabled: true
+      metrics_path: "/metrics"
+      health_check_path: "/health"
+      ready_check_path: "/ready"
+      startup_check_path: "/startup"
+    
+    cache:
+      type: "redis"
+      ttl: 3600
+      max_connections: 20
+    
+    database:
+      pool_size: 10
+      max_overflow: 20
+      pool_timeout: 30
+      pool_recycle: 3600
+      echo: false
+    
+    security:
+      cors_enabled: true
+      cors_origins: ["*"]
+      cors_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+      cors_headers: ["*"]
+      rate_limiting:
+        enabled: true
+        requests_per_minute: 60
+        burst_size: 10
+  
+  # NGINX configuration for sidecar
+  nginx.conf: |
+    worker_processes auto;
+    error_log /var/log/nginx/error.log warn;
+    pid /var/run/nginx.pid;
+    
+    events {
+        worker_connections 1024;
+        use epoll;
+        multi_accept on;
+    }
+    
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+        
+        log_format json_combined escape=json
+            '{'
+            '"time_local":"$time_local",'
+            '"remote_addr":"$remote_addr",'
+            '"remote_user":"$remote_user",'
+            '"request":"$request",'
+            '"status": "$status",'
+            '"body_bytes_sent":"$body_bytes_sent",'
+            '"request_time":"$request_time",'
+            '"http_referrer":"$http_referer",'
+            '"http_user_agent":"$http_user_agent"'
+            '}';
+        
+        access_log /var/log/nginx/access.log json_combined;
+        
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        keepalive_timeout 65;
+        types_hash_max_size 2048;
+        
+        # Gzip compression
+        gzip on;
+        gzip_vary on;
+        gzip_min_length 1024;
+        gzip_proxied any;
+        gzip_comp_level 6;
+        gzip_types
+            text/plain
+            text/css
+            text/xml
+            text/javascript
+            application/json
+            application/javascript
+            application/xml+rss
+            application/atom+xml;
+        
+        # Rate limiting
+        limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+        
+        upstream backend {
+            server localhost:8000;
+            keepalive 32;
+        }
+        
+        server {
+            listen 80;
+            server_name _;
+            
+            # Health check endpoint
+            location /nginx-health {
+                access_log off;
+                return 200 "healthy\n";
+                add_header Content-Type text/plain;
+            }
+            
+            # Main application
+            location / {
+                limit_req zone=api burst=20 nodelay;
+                
+                proxy_pass http://backend;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                
+                proxy_connect_timeout 5s;
+                proxy_send_timeout 60s;
+                proxy_read_timeout 60s;
+                
+                # Circuit breaker
+                proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+                proxy_next_upstream_timeout 10s;
+                proxy_next_upstream_tries 3;
+            }
+        }
+    }

@@ -1,0 +1,737 @@
+# IoT Device Server - Edge Deployment Configuration
+# Edge processing, Real-time control, Multi-protocol support, Security hardened
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: iot-device-edge
+  labels:
+    environment: production
+    category: iot
+    deployment-type: edge
+    security-level: high
+  annotations:
+    description: "IoT device server for edge processing and real-time control systems"
+
+---
+# ConfigMap for IoT-specific configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: iot-device-config
+  namespace: iot-device-edge
+  labels:
+    app: iot-device-server
+    component: config
+data:
+  app.yml: |
+    server:
+      host: "0.0.0.0"
+      port: 8000
+      workers: 4  # Fewer workers for edge devices
+      timeout: 30
+      keepalive: 10
+      max_requests: 1000
+    
+    iot:
+      protocols:
+        - mqtt
+        - coap
+        - http
+        - websocket
+        - modbus
+        - bacnet
+      
+      mqtt:
+        broker_host: "0.0.0.0"
+        broker_port: 1883
+        broker_ssl_port: 8883
+        max_connections: 1000
+        keepalive: 60
+        qos_level: 1
+        retain_messages: true
+      
+      coap:
+        port: 5683
+        secure_port: 5684
+        block_size: 1024
+        max_retransmit: 4
+      
+      device_management:
+        auto_discovery: true
+        device_registry_enabled: true
+        firmware_update_enabled: true
+        config_push_enabled: true
+        telemetry_collection: true
+      
+      edge_processing:
+        real_time_processing: true
+        local_analytics: true
+        rule_engine_enabled: true
+        ml_inference_enabled: true
+        time_series_buffer_size: 10000
+      
+      security:
+        device_authentication: "certificate"
+        message_encryption: true
+        secure_boot_verification: true
+        tamper_detection: true
+        network_segmentation: true
+      
+      reliability:
+        offline_operation: true
+        data_persistence: true
+        redundancy_enabled: true
+        failover_timeout: 10
+      
+    database:
+      type: "sqlite"  # Lightweight for edge
+      path: "/data/iot-edge.db"
+      wal_mode: true
+      synchronous: "NORMAL"
+      cache_size: 2000
+    
+    cache:
+      type: "memory"  # In-memory cache for edge
+      max_size: "256MB"
+      ttl: 300
+    
+    monitoring:
+      enabled: true
+      device_health_monitoring: true
+      network_quality_monitoring: true
+      edge_performance_monitoring: true
+      predictive_maintenance: true
+
+---
+# Secret for IoT-specific credentials and certificates
+apiVersion: v1
+kind: Secret
+metadata:
+  name: iot-device-secrets
+  namespace: iot-device-edge
+  labels:
+    app: iot-device-server
+    component: security
+type: Opaque
+stringData:
+  # Device root CA certificate
+  device-root-ca: |
+    -----BEGIN CERTIFICATE-----
+    ... (IoT device root CA certificate)
+    -----END CERTIFICATE-----
+  
+  # Server certificate for device authentication
+  server-cert: |
+    -----BEGIN CERTIFICATE-----
+    ... (IoT server certificate)
+    -----END CERTIFICATE-----
+  
+  # Server private key
+  server-key: |
+    -----BEGIN PRIVATE KEY-----
+    ... (IoT server private key)
+    -----END PRIVATE KEY-----
+  
+  # MQTT broker credentials
+  mqtt-username: "iot-edge-broker"
+  mqtt-password: "secure-mqtt-password"
+  
+  # Device encryption keys
+  device-encryption-key: "iot-device-encryption-key-256bit"
+  
+  # Cloud connectivity credentials
+  cloud-api-key: "iot-cloud-integration-api-key"
+  cloud-device-id: "edge-gateway-device-id"
+  
+  # Certificate signing key for device provisioning
+  device-signing-key: "device-certificate-signing-key"
+
+---
+# Deployment optimized for edge IoT processing
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iot-device-server
+  namespace: iot-device-edge
+  labels:
+    app: iot-device-server
+    component: edge-gateway
+    tier: backend
+    category: iot
+spec:
+  replicas: 2  # Redundancy for edge reliability
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # Ensure continuous IoT processing
+  
+  selector:
+    matchLabels:
+      app: iot-device-server
+  
+  template:
+    metadata:
+      labels:
+        app: iot-device-server
+        component: edge-gateway
+        tier: backend
+        category: iot
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+        # IoT-specific annotations
+        iot.io/edge-processing: "enabled"
+        iot.io/real-time: "required"
+        iot.io/security-level: "high"
+        network.io/low-latency: "required"
+    
+    spec:
+      # Security context for IoT edge deployment
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1500
+        runAsGroup: 1500
+        fsGroup: 1500
+        seccompProfile:
+          type: RuntimeDefault
+      
+      serviceAccountName: iot-device-server
+      
+      # Node selection for edge devices
+      nodeSelector:
+        node-type: "edge-gateway"
+        hardware: "iot-optimized"
+        network: "low-latency"
+      
+      # Tolerations for edge-specific hardware
+      tolerations:
+      - key: "edge-device"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      - key: "iot-workload"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      - key: "real-time-processing"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      
+      # Affinity for edge processing requirements
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - iot-device-server
+            topologyKey: kubernetes.io/hostname
+        
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: hardware
+                operator: In
+                values:
+                - "iot-optimized"
+                - "edge-computing"
+              - key: network-latency
+                operator: In
+                values:
+                - "ultra-low"
+                - "low"
+      
+      # Host network for direct hardware access
+      hostNetwork: false  # Set to true if direct hardware access needed
+      dnsPolicy: ClusterFirst
+      
+      containers:
+      - name: iot-device-server
+        image: mcp-server/iot-device:latest
+        imagePullPolicy: Always
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            # IoT-specific capabilities for network access
+            add:
+            - NET_BIND_SERVICE  # Bind to privileged ports
+            - NET_RAW          # Raw socket access for protocols
+            drop:
+            - ALL
+        
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        - name: health
+          containerPort: 8001
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        - name: mqtt
+          containerPort: 1883
+          protocol: TCP
+        - name: mqtt-ssl
+          containerPort: 8883
+          protocol: TCP
+        - name: coap
+          containerPort: 5683
+          protocol: UDP
+        - name: coap-ssl
+          containerPort: 5684
+          protocol: UDP
+        - name: modbus
+          containerPort: 502
+          protocol: TCP
+        
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: IOT_MODE
+          value: "true"
+        - name: EDGE_PROCESSING
+          value: "true"
+        - name: REAL_TIME_PROCESSING
+          value: "true"
+        - name: DEVICE_DISCOVERY_ENABLED
+          value: "true"
+        - name: ML_INFERENCE_ENABLED
+          value: "true"
+        - name: OFFLINE_OPERATION_ENABLED
+          value: "true"
+        
+        # Edge-specific configuration
+        - name: EDGE_DEVICE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: EDGE_LOCATION
+          value: "manufacturing-floor-a"
+        - name: TIMEZONE
+          value: "America/Chicago"
+        
+        # Resource limits
+        - name: MAX_CONCURRENT_DEVICES
+          value: "1000"
+        - name: MAX_MESSAGE_RATE
+          value: "10000"  # Messages per second
+        - name: BUFFER_SIZE
+          value: "50MB"
+        
+        envFrom:
+        - secretRef:
+            name: iot-device-secrets
+        
+        # Resource configuration for edge processing
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+            ephemeral-storage: 2Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+            ephemeral-storage: 8Gi
+        
+        # Volume mounts for IoT edge processing
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+        - name: iot-data
+          mountPath: /data
+        - name: device-configs
+          mountPath: /app/device-configs
+        - name: ml-models
+          mountPath: /app/models
+          readOnly: true
+        - name: certificates
+          mountPath: /app/certs
+          readOnly: true
+        - name: firmware-updates
+          mountPath: /app/firmware
+          readOnly: true
+        
+        # Health checks optimized for IoT edge
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: health
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: health
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+          successThreshold: 1
+        
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: health
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 20
+          successThreshold: 1
+      
+      # MQTT broker sidecar for local device communication
+      - name: mqtt-broker
+        image: eclipse-mosquitto:2.0
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        
+        ports:
+        - name: mqtt-broker
+          containerPort: 1883
+          protocol: TCP
+        - name: mqtt-broker-ssl
+          containerPort: 8883
+          protocol: TCP
+        
+        volumeMounts:
+        - name: mqtt-config
+          mountPath: /mosquitto/config
+          readOnly: true
+        - name: certificates
+          mountPath: /mosquitto/certs
+          readOnly: true
+        - name: mqtt-data
+          mountPath: /mosquitto/data
+      
+      # Protocol translator for legacy devices
+      - name: protocol-translator
+        image: iot-protocol-translator:latest
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - NET_RAW
+            - NET_BIND_SERVICE
+        
+        env:
+        - name: SUPPORTED_PROTOCOLS
+          value: "modbus,bacnet,profinet,ethernet-ip"
+        - name: TRANSLATION_MODE
+          value: "bidirectional"
+        
+        ports:
+        - name: modbus-tcp
+          containerPort: 502
+          protocol: TCP
+        - name: bacnet-ip
+          containerPort: 47808
+          protocol: UDP
+        
+        volumeMounts:
+        - name: protocol-configs
+          mountPath: /app/protocols
+          readOnly: true
+      
+      # Local ML inference engine
+      - name: ml-inference
+        image: iot-ml-inference:latest
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        
+        env:
+        - name: MODEL_REPOSITORY
+          value: "/app/models"
+        - name: INFERENCE_MODE
+          value: "real-time"
+        - name: BATCH_SIZE
+          value: "32"
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        
+        volumeMounts:
+        - name: ml-models
+          mountPath: /app/models
+          readOnly: true
+        - name: ml-cache
+          mountPath: /app/cache
+      
+      volumes:
+      - name: tmp-volume
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: iot-data
+        persistentVolumeClaim:
+          claimName: iot-device-data-pvc
+      - name: device-configs
+        persistentVolumeClaim:
+          claimName: iot-device-configs-pvc
+      - name: ml-models
+        persistentVolumeClaim:
+          claimName: iot-ml-models-pvc
+      - name: certificates
+        secret:
+          secretName: iot-device-secrets
+      - name: firmware-updates
+        configMap:
+          name: iot-firmware-repository
+      - name: mqtt-config
+        configMap:
+          name: iot-mqtt-config
+      - name: mqtt-data
+        persistentVolumeClaim:
+          claimName: iot-mqtt-data-pvc
+      - name: protocol-configs
+        configMap:
+          name: iot-protocol-configs
+      - name: ml-cache
+        emptyDir:
+          sizeLimit: 2Gi
+      
+      terminationGracePeriodSeconds: 30
+
+---
+# Service for IoT device connectivity
+apiVersion: v1
+kind: Service
+metadata:
+  name: iot-device-server
+  namespace: iot-device-edge
+  labels:
+    app: iot-device-server
+    component: edge-gateway
+    category: iot
+  annotations:
+    # IoT-specific service annotations
+    iot.io/protocols: "mqtt,coap,http,modbus"
+    iot.io/edge-service: "true"
+    network.io/low-latency: "required"
+spec:
+  type: LoadBalancer
+  loadBalancerSourceRanges:
+  - "10.0.0.0/8"     # Internal network only
+  - "192.168.0.0/16" # Local networks
+  
+  ports:
+  # HTTP/HTTPS for web-based devices and APIs
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: http
+    protocol: TCP
+  
+  # MQTT for IoT messaging
+  - name: mqtt
+    port: 1883
+    targetPort: mqtt
+    protocol: TCP
+  - name: mqtt-ssl
+    port: 8883
+    targetPort: mqtt-ssl
+    protocol: TCP
+  
+  # CoAP for constrained devices
+  - name: coap
+    port: 5683
+    targetPort: coap
+    protocol: UDP
+  - name: coap-ssl
+    port: 5684
+    targetPort: coap-ssl
+    protocol: UDP
+  
+  # Industrial protocols
+  - name: modbus
+    port: 502
+    targetPort: modbus
+    protocol: TCP
+  
+  # Health and monitoring
+  - name: health
+    port: 8001
+    targetPort: health
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: metrics
+    protocol: TCP
+  
+  selector:
+    app: iot-device-server
+  
+  # Session affinity for device state management
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 1800  # 30 minutes for device sessions
+
+---
+# HPA for IoT workload scaling
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: iot-device-server-hpa
+  namespace: iot-device-edge
+  labels:
+    app: iot-device-server
+    component: autoscaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: iot-device-server
+  
+  minReplicas: 2  # Minimum for redundancy
+  maxReplicas: 8  # Limited scaling for edge
+  
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60  # Conservative for real-time processing
+  
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 70
+  
+  # IoT-specific custom metrics
+  - type: Pods
+    pods:
+      metric:
+        name: iot_active_device_connections
+      target:
+        type: AverageValue
+        averageValue: "500"  # Scale based on device connections
+  
+  - type: Pods
+    pods:
+      metric:
+        name: iot_message_processing_rate
+      target:
+        type: AverageValue
+        averageValue: "5000"  # Messages per second per pod
+  
+  - type: Pods
+    pods:
+      metric:
+        name: iot_real_time_processing_latency_p99
+      target:
+        type: AverageValue
+        averageValue: "100"  # Scale if latency exceeds 100ms
+  
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300  # Stable for 5 minutes
+      policies:
+      - type: Percent
+        value: 10  # Conservative scale down for IoT
+        periodSeconds: 60
+      selectPolicy: Min
+    
+    scaleUp:
+      stabilizationWindowSeconds: 30  # Quick scale up for device spikes
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 30
+      - type: Pods
+        value: 2
+        periodSeconds: 30
+      selectPolicy: Max
+
+---
+# Network Policy for IoT security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: iot-device-network-policy
+  namespace: iot-device-edge
+  labels:
+    app: iot-device-server
+    component: security
+spec:
+  podSelector:
+    matchLabels:
+      app: iot-device-server
+  
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow device connections from IoT networks
+  - from:
+    - ipBlock:
+        cidr: 10.0.0.0/8    # Internal IoT network
+    - ipBlock:
+        cidr: 192.168.0.0/16 # Local IoT networks
+    ports:
+    - protocol: TCP
+      port: 1883  # MQTT
+    - protocol: TCP
+      port: 8883  # MQTT SSL
+    - protocol: UDP
+      port: 5683  # CoAP
+    - protocol: UDP
+      port: 5684  # CoAP SSL
+    - protocol: TCP
+      port: 502   # Modbus
+    - protocol: TCP
+      port: 8000  # HTTP API
+  
+  # Allow monitoring and health checks
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090  # Metrics
+    - protocol: TCP
+      port: 8001  # Health
+  
+  egress:
+  # Allow connections to cloud services
+  - to: []  # Allow all external for cloud connectivity
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS
+    - protocol: TCP
+      port: 8883  # MQTT SSL to cloud
+  
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53

@@ -1,0 +1,590 @@
+# Education LMS Server - Scalable Deployment Configuration
+# Auto-scaling for enrollment periods, Multi-tenant, Cost-optimized
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: education-lms-prod
+  labels:
+    environment: production
+    category: education
+    multi-tenant: "true"
+  annotations:
+    description: "Multi-tenant education LMS server with auto-scaling for peak enrollment periods"
+
+---
+# ConfigMap for education-specific configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: education-lms-config
+  namespace: education-lms-prod
+  labels:
+    app: education-lms-server
+    component: config
+data:
+  app.yml: |
+    server:
+      host: "0.0.0.0"
+      port: 8000
+      workers: 6
+      timeout: 45
+      keepalive: 3
+      max_requests: 1500
+    
+    education:
+      lms_version: "4.2"
+      multi_tenant_enabled: true
+      max_tenants_per_instance: 50
+      student_concurrent_limit: 2000
+      instructor_concurrent_limit: 200
+      enrollment_burst_mode: true
+      
+    features:
+      gradebook_integration: true
+      sso_enabled: true
+      video_streaming: true
+      assignment_submission: true
+      quiz_proctoring: false  # Can be enabled per tenant
+      plagiarism_detection: true
+      
+    scaling:
+      enrollment_period_detection: true
+      auto_scale_on_registrations: true
+      scale_down_after_hours: true
+      weekend_scale_down: true
+      summer_break_scale_down: true
+      
+    cache:
+      type: "redis"
+      ttl: 1800  # 30 minutes for education content
+      course_content_cache: 7200  # 2 hours for course materials
+      user_session_cache: 3600  # 1 hour for user sessions
+      
+    database:
+      pool_size: 15
+      max_overflow: 30
+      pool_timeout: 45
+      read_replicas_enabled: true
+      tenant_isolation: "database"  # database per tenant
+      
+    monitoring:
+      enabled: true
+      student_activity_tracking: true
+      performance_analytics: true
+      cost_optimization_metrics: true
+
+---
+# Secret for education-specific credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: education-lms-secrets
+  namespace: education-lms-prod
+  labels:
+    app: education-lms-server
+    component: security
+type: Opaque
+stringData:
+  # Master database connection
+  database-url: "postgresql://lms_master:secure_password@education-db-master:5432/lms_prod"
+  
+  # Read replica connections
+  database-read-replica-urls: |
+    postgresql://lms_reader:secure_password@education-db-replica-1:5432/lms_prod
+    postgresql://lms_reader:secure_password@education-db-replica-2:5432/lms_prod
+  
+  # Redis for caching and sessions
+  redis-url: "redis://education-redis-cluster:6379/0"
+  
+  # SSO integration
+  saml-certificate: "saml-signing-certificate"
+  saml-private-key: "saml-private-key"
+  oauth-client-id: "education-lms-oauth-client"
+  oauth-client-secret: "education-lms-oauth-secret"
+  
+  # External service integrations
+  gradebook-api-key: "gradebook-integration-api-key"
+  plagiarism-api-key: "plagiarism-detection-api-key"
+  video-streaming-key: "video-streaming-service-key"
+  
+  # Tenant encryption keys
+  tenant-encryption-key: "tenant-data-encryption-key-256bit"
+
+---
+# Deployment with education-specific scaling configuration
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: education-lms-server
+  namespace: education-lms-prod
+  labels:
+    app: education-lms-server
+    component: api
+    tier: backend
+    category: education
+spec:
+  replicas: 2  # Base replicas, will auto-scale
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2  # Allow burst scaling
+      maxUnavailable: 1
+  
+  selector:
+    matchLabels:
+      app: education-lms-server
+  
+  template:
+    metadata:
+      labels:
+        app: education-lms-server
+        component: api
+        tier: backend
+        category: education
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+        # Education-specific annotations
+        education.io/multi-tenant: "true"
+        education.io/auto-scale: "true"
+        cost.io/optimization-enabled: "true"
+    
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      
+      serviceAccountName: education-lms-server
+      
+      # Node selection for cost optimization
+      nodeSelector:
+        node-type: "general-purpose"
+        cost-tier: "optimized"
+      
+      # Scheduling preferences for cost efficiency
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - education-lms-server
+              topologyKey: kubernetes.io/hostname
+        
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 80
+            preference:
+              matchExpressions:
+              - key: instance-type
+                operator: In
+                values:
+                - "cost-optimized"
+                - "general-purpose"
+          - weight: 60
+            preference:
+              matchExpressions:
+              - key: spot-instance
+                operator: In
+                values:
+                - "true"  # Prefer spot instances for cost savings
+      
+      # Tolerations for spot instances
+      tolerations:
+      - key: "spot-instance"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      - key: "cost-optimized"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      
+      containers:
+      - name: education-lms-server
+        image: mcp-server/education-lms:latest
+        imagePullPolicy: Always
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        - name: health
+          containerPort: 8001
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: EDUCATION_MODE
+          value: "true"
+        - name: MULTI_TENANT_ENABLED
+          value: "true"
+        - name: AUTO_SCALING_ENABLED
+          value: "true"
+        - name: COST_OPTIMIZATION_ENABLED
+          value: "true"
+        - name: ENROLLMENT_PERIOD_DETECTION
+          value: "true"
+        
+        # Academic calendar configuration
+        - name: ACADEMIC_YEAR_START
+          value: "2024-08-15"  # Configurable academic year start
+        - name: ENROLLMENT_PERIODS
+          value: "2024-08-01,2024-12-15,2025-01-15,2025-05-15"  # Peak enrollment dates
+        - name: BREAK_PERIODS
+          value: "2024-12-20:2025-01-10,2025-05-20:2025-08-10"  # Scale down periods
+        
+        # Timezone configuration
+        - name: TZ
+          value: "America/New_York"  # Primary timezone for academic calendar
+        - name: MULTI_TIMEZONE_SUPPORT
+          value: "true"  # Support multiple institutions in different timezones
+        
+        envFrom:
+        - secretRef:
+            name: education-lms-secrets
+        
+        # Resource configuration optimized for education workloads
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+            ephemeral-storage: 1Gi
+          limits:
+            cpu: 1500m
+            memory: 3Gi
+            ephemeral-storage: 3Gi
+        
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+        - name: course-content-cache
+          mountPath: /app/course-cache
+        - name: user-uploads
+          mountPath: /app/uploads
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        
+        # Health checks optimized for education workloads
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: health
+            scheme: HTTP
+          initialDelaySeconds: 45
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+        
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: health
+            scheme: HTTP
+          initialDelaySeconds: 20
+          periodSeconds: 15
+          timeoutSeconds: 8
+          failureThreshold: 3
+          successThreshold: 1
+        
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: health
+            scheme: HTTP
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 8
+          failureThreshold: 12
+          successThreshold: 1
+      
+      # File storage sidecar for course materials
+      - name: file-storage-sync
+        image: education-file-sync:latest
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        
+        env:
+        - name: SYNC_ENABLED
+          value: "true"
+        - name: STORAGE_BACKEND
+          value: "s3"
+        - name: SYNC_INTERVAL
+          value: "300"  # 5 minutes
+        
+        volumeMounts:
+        - name: course-content-cache
+          mountPath: /course-cache
+        - name: user-uploads
+          mountPath: /uploads
+      
+      volumes:
+      - name: tmp-volume
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: course-content-cache
+        persistentVolumeClaim:
+          claimName: education-course-content-pvc
+      - name: user-uploads
+        persistentVolumeClaim:
+          claimName: education-user-uploads-pvc
+      - name: config-volume
+        configMap:
+          name: education-lms-config
+      
+      terminationGracePeriodSeconds: 45
+
+---
+# Service for education LMS
+apiVersion: v1
+kind: Service
+metadata:
+  name: education-lms-server
+  namespace: education-lms-prod
+  labels:
+    app: education-lms-server
+    component: api
+    category: education
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "alb"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:123456789:certificate/education-cert"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "https"
+    # Education-specific load balancer configuration
+    education.io/session-affinity: "required"
+    education.io/multi-tenant: "true"
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: http
+    protocol: TCP
+  - name: health
+    port: 8001
+    targetPort: health
+    protocol: TCP
+  selector:
+    app: education-lms-server
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600  # 1 hour session affinity for student sessions
+
+---
+# Advanced HPA for education workloads with academic calendar awareness
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: education-lms-server-hpa
+  namespace: education-lms-prod
+  labels:
+    app: education-lms-server
+    component: autoscaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: education-lms-server
+  
+  minReplicas: 1  # Scale down to 1 during breaks
+  maxReplicas: 30  # Scale up significantly during enrollment
+  
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+  
+  # Education-specific custom metrics
+  - type: Pods
+    pods:
+      metric:
+        name: education_active_student_sessions
+      target:
+        type: AverageValue
+        averageValue: "100"
+  
+  - type: Pods
+    pods:
+      metric:
+        name: education_concurrent_enrollments
+      target:
+        type: AverageValue
+        averageValue: "20"  # Scale up during enrollment periods
+  
+  - type: Pods
+    pods:
+      metric:
+        name: education_assignment_submissions_rate
+      target:
+        type: AverageValue
+        averageValue: "50"  # Scale during assignment deadlines
+  
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600  # 10 minutes stabilization
+      policies:
+      - type: Percent
+        value: 20  # Can scale down faster during off-peak
+        periodSeconds: 120
+      - type: Pods
+        value: 2
+        periodSeconds: 120
+      selectPolicy: Max
+    
+    scaleUp:
+      stabilizationWindowSeconds: 60  # Quick scale up for enrollments
+      policies:
+      - type: Percent
+        value: 100  # Double capacity quickly if needed
+        periodSeconds: 60
+      - type: Pods
+        value: 5  # Add 5 pods at once during high load
+        periodSeconds: 60
+      selectPolicy: Max
+
+---
+# Scheduled scaler for academic calendar awareness
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: education-academic-calendar-scaler
+  namespace: education-lms-prod
+  labels:
+    app: education-lms-server
+    component: scheduler
+spec:
+  schedule: "0 6 * * *"  # Daily at 6 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: education-calendar-scaler
+          containers:
+          - name: calendar-scaler
+            image: education-calendar-scaler:latest
+            env:
+            - name: NAMESPACE
+              value: "education-lms-prod"
+            - name: DEPLOYMENT_NAME
+              value: "education-lms-server"
+            - name: HPA_NAME
+              value: "education-lms-server-hpa"
+            
+            command:
+            - /bin/bash
+            - -c
+            - |
+              # Academic calendar-aware scaling logic
+              CURRENT_DATE=$(date +%Y-%m-%d)
+              CURRENT_MONTH=$(date +%m)
+              CURRENT_DAY=$(date +%d)
+              
+              # Enrollment periods (August, December, January, May)
+              if [[ "$CURRENT_MONTH" == "08" ]] || [[ "$CURRENT_MONTH" == "12" ]] || [[ "$CURRENT_MONTH" == "01" ]] || [[ "$CURRENT_MONTH" == "05" ]]; then
+                echo "Enrollment period detected, increasing capacity"
+                kubectl patch hpa education-lms-server-hpa -n education-lms-prod --type='merge' -p='{"spec":{"minReplicas":5,"maxReplicas":40}}'
+              
+              # Summer break (June-July)
+              elif [[ "$CURRENT_MONTH" == "06" ]] || [[ "$CURRENT_MONTH" == "07" ]]; then
+                echo "Summer break detected, reducing capacity"
+                kubectl patch hpa education-lms-server-hpa -n education-lms-prod --type='merge' -p='{"spec":{"minReplicas":1,"maxReplicas":10}}'
+              
+              # Regular semester
+              else
+                echo "Regular semester, standard capacity"
+                kubectl patch hpa education-lms-server-hpa -n education-lms-prod --type='merge' -p='{"spec":{"minReplicas":2,"maxReplicas":25}}'
+              fi
+              
+          restartPolicy: OnFailure
+
+---
+# Cost optimization with Vertical Pod Autoscaler
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: education-lms-server-vpa
+  namespace: education-lms-prod
+  labels:
+    app: education-lms-server
+    component: cost-optimization
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: education-lms-server
+  
+  updatePolicy:
+    updateMode: "Auto"  # Automatically apply recommendations
+  
+  resourcePolicy:
+    containerPolicies:
+    - containerName: education-lms-server
+      maxAllowed:
+        cpu: 2
+        memory: 4Gi
+      minAllowed:
+        cpu: 100m
+        memory: 256Mi
+      controlledResources:
+      - cpu
+      - memory
+      # Cost optimization: prefer CPU over memory for education workloads
+      controlledValues: RequestsAndLimits
+
+---
+# PodDisruptionBudget for academic continuity
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: education-lms-server-pdb
+  namespace: education-lms-prod
+  labels:
+    app: education-lms-server
+    component: availability
+spec:
+  minAvailable: 1  # Always keep at least one pod running
+  selector:
+    matchLabels:
+      app: education-lms-server
+  
+  # During enrollment periods, be more conservative
+  maxUnavailable: 25%

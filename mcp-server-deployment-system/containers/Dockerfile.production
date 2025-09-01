@@ -1,0 +1,104 @@
+# Multi-stage Dockerfile for Production MCP Server Deployment
+# Security hardened with minimal attack surface
+
+# Stage 1: Build environment
+FROM python:3.11-slim as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create build user
+RUN groupadd -r builduser && useradd -r -g builduser builduser
+
+# Set work directory
+WORKDIR /build
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Copy source code
+COPY . .
+
+# Build the application (if needed)
+RUN python -m compileall .
+
+# Stage 2: Runtime environment
+FROM python:3.11-slim as runtime
+
+# Security: Install security updates and necessary packages only
+RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
+    ca-certificates \
+    curl \
+    && apt-get upgrade -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN groupadd -r mcpuser && useradd -r -g mcpuser -s /bin/false mcpuser
+
+# Set up application directory
+WORKDIR /app
+
+# Copy Python packages from builder
+COPY --from=builder /root/.local /home/mcpuser/.local
+
+# Copy application code
+COPY --from=builder /build /app
+
+# Change ownership to non-root user
+RUN chown -R mcpuser:mcpuser /app /home/mcpuser/.local
+
+# Create directory for logs with proper permissions
+RUN mkdir -p /app/logs && chown mcpuser:mcpuser /app/logs
+
+# Security: Remove sensitive files that might have been copied
+RUN find /app -name "*.pyc" -delete && \
+    find /app -name "*.pyo" -delete && \
+    find /app -name "*~" -delete && \
+    find /app -name ".git*" -delete 2>/dev/null || true
+
+# Set up Python path
+ENV PYTHONPATH="/home/mcpuser/.local/lib/python3.11/site-packages:$PYTHONPATH"
+ENV PATH="/home/mcpuser/.local/bin:$PATH"
+
+# Security: Set secure environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONHASHSEED=random
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Health check configuration
+ENV HEALTH_CHECK_PORT=8001
+ENV HEALTH_CHECK_PATH=/health
+
+# Expose application port (non-root port)
+EXPOSE 8000
+
+# Expose health check port
+EXPOSE 8001
+
+# Switch to non-root user
+USER mcpuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${HEALTH_CHECK_PORT}${HEALTH_CHECK_PATH} || exit 1
+
+# Default command with graceful shutdown handling
+CMD ["python", "-m", "mcp_server"]
+
+# Labels for container metadata
+LABEL maintainer="MCP Deployment System" \
+      version="1.0.0" \
+      description="Production MCP Server Container" \
+      security.hardened="true" \
+      org.opencontainers.image.source="https://github.com/synthnet/mcp-deployment" \
+      org.opencontainers.image.documentation="https://github.com/synthnet/mcp-deployment/docs" \
+      org.opencontainers.image.licenses="MIT"

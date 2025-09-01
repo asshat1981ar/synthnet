@@ -1,0 +1,123 @@
+# Base configuration for MCP Server deployments
+# This configuration is shared across all environments
+
+# Server configuration
+server:
+  name: mcp-server
+  host: "0.0.0.0"
+  port: 8000
+  health_check_port: 8001
+  metrics_port: 9090
+  timeout: 30
+  workers: 4
+  max_requests: 1000
+  keepalive: 2
+
+# Resource configuration
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+    ephemeral_storage: 1Gi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+    ephemeral_storage: 2Gi
+
+# Scaling configuration
+scaling:
+  min_replicas: 2
+  max_replicas: 10
+  target_cpu_utilization: 70
+  target_memory_utilization: 80
+
+# Database configuration
+database:
+  pool_size: 10
+  max_overflow: 20
+  pool_timeout: 30
+  pool_recycle: 3600
+  echo: false
+  ssl_mode: "prefer"
+
+# Cache configuration
+cache:
+  type: "redis"
+  ttl: 3600
+  max_connections: 20
+  retry_on_timeout: true
+
+# Security configuration
+security:
+  cors_enabled: true
+  cors_origins: ["*"]
+  cors_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+  cors_headers: ["*"]
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+    burst_size: 10
+  session_timeout: 1800
+  csrf_protection: true
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  metrics_enabled: true
+  health_check_enabled: true
+  readiness_check_enabled: true
+  startup_check_enabled: true
+  metrics_path: "/metrics"
+  health_check_path: "/health"
+  ready_check_path: "/ready"
+  startup_check_path: "/startup"
+  prometheus_scraping: true
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "json"
+  structured: true
+  correlation_id: true
+  request_logging: true
+  response_logging: false
+  error_logging: true
+  access_logging: true
+  audit_logging: false
+
+# Feature flags
+features:
+  async_processing: true
+  background_tasks: true
+  websocket_support: false
+  file_upload_support: true
+  caching: true
+  compression: true
+
+# Integration settings
+integrations:
+  external_apis:
+    timeout: 30
+    retry_attempts: 3
+    retry_backoff: 1.0
+  
+  message_queue:
+    enabled: false
+    type: "redis"
+    
+  file_storage:
+    type: "local"
+    base_path: "/app/storage"
+
+# Backup configuration
+backup:
+  enabled: false
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention_days: 30
+
+# Maintenance configuration
+maintenance:
+  window_enabled: false
+  window_start: "02:00"
+  window_duration: "2h"
+  timezone: "UTC"

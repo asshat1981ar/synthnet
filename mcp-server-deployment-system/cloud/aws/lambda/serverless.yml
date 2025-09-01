@@ -1,0 +1,294 @@
+# Serverless Framework configuration for AWS Lambda MCP Server deployment
+service: mcp-server-lambda
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.11
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  
+  # Memory and timeout configuration
+  memorySize: 1024
+  timeout: 300
+  
+  # Environment variables
+  environment:
+    STAGE: ${self:provider.stage}
+    REGION: ${self:provider.region}
+    LOG_LEVEL: ${env:LOG_LEVEL, 'INFO'}
+    DATABASE_URL: ${ssm:/mcp-server/${self:provider.stage}/database-url}
+    REDIS_URL: ${ssm:/mcp-server/${self:provider.stage}/redis-url}
+    SECRET_KEY: ${ssm:/mcp-server/${self:provider.stage}/secret-key~true}
+  
+  # IAM permissions
+  iamRoleStatements:
+    # CloudWatch Logs
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+      Resource: arn:aws:logs:${self:provider.region}:*:*
+    
+    # Systems Manager Parameter Store
+    - Effect: Allow
+      Action:
+        - ssm:GetParameter
+        - ssm:GetParameters
+        - ssm:GetParametersByPath
+      Resource:
+        - arn:aws:ssm:${self:provider.region}:*:parameter/mcp-server/${self:provider.stage}/*
+    
+    # KMS for encrypted parameters
+    - Effect: Allow
+      Action:
+        - kms:Decrypt
+      Resource:
+        - arn:aws:kms:${self:provider.region}:*:key/*
+    
+    # X-Ray tracing
+    - Effect: Allow
+      Action:
+        - xray:PutTraceSegments
+        - xray:PutTelemetryRecords
+      Resource: "*"
+  
+  # VPC configuration for database access
+  vpc:
+    securityGroupIds:
+      - ${ssm:/mcp-server/${self:provider.stage}/security-group-id}
+    subnetIds:
+      - ${ssm:/mcp-server/${self:provider.stage}/subnet-id-1}
+      - ${ssm:/mcp-server/${self:provider.stage}/subnet-id-2}
+  
+  # Lambda layer for dependencies
+  layers:
+    - ${cf:mcp-server-dependencies-${self:provider.stage}.McpDependenciesLayerExport}
+  
+  # Tracing
+  tracing:
+    lambda: true
+    apiGateway: true
+
+# Custom configuration
+custom:
+  # Python requirements
+  pythonRequirements:
+    dockerizePip: true
+    layer: true
+    
+  # API Gateway configuration
+  customDomain:
+    domainName: ${env:DOMAIN_NAME, 'api-${self:provider.stage}.mcpserver.com'}
+    certificateName: '*.mcpserver.com'
+    createRoute53Record: true
+    endpointType: 'regional'
+    
+  # Monitoring and alerts
+  alerts:
+    stages:
+      - prod
+      - staging
+    topics:
+      alarm: 
+        topic: ${cf:mcp-server-monitoring-${self:provider.stage}.AlertTopicArn}
+    alarms:
+      - functionThrottles
+      - functionErrors
+      - functionDuration
+      
+  # Auto-scaling
+  autoScaling:
+    - table: mcp-server-sessions
+      read:
+        minimum: 5
+        maximum: 1000
+        usage: 0.75
+      write:
+        minimum: 5
+        maximum: 1000
+        usage: 0.75
+
+functions:
+  # Main MCP Server handler
+  mcpServer:
+    handler: lambda_handler.handler
+    name: mcp-server-${self:provider.stage}
+    description: MCP Server Lambda function
+    
+    # Memory and timeout for main function
+    memorySize: 2048
+    timeout: 300
+    
+    # Reserved concurrency
+    reservedConcurrency: 100
+    
+    events:
+      # HTTP API Gateway v2
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+      - httpApi:
+          path: /
+          method: ANY
+    
+    # Environment variables specific to this function
+    environment:
+      FUNCTION_NAME: mcpServer
+      
+  # Health check function (lightweight)
+  healthCheck:
+    handler: health_handler.handler
+    name: mcp-server-health-${self:provider.stage}
+    description: MCP Server health check function
+    
+    memorySize: 256
+    timeout: 30
+    
+    events:
+      - httpApi:
+          path: /health
+          method: GET
+      - httpApi:
+          path: /ready
+          method: GET
+    
+    # Scheduled health checks
+    - schedule:
+        rate: rate(5 minutes)
+        input:
+          source: "scheduled-health-check"
+  
+  # Metrics collection function
+  metricsCollector:
+    handler: metrics_handler.handler
+    name: mcp-server-metrics-${self:provider.stage}
+    description: MCP Server metrics collection function
+    
+    memorySize: 512
+    timeout: 60
+    
+    events:
+      - schedule:
+          rate: rate(1 minute)
+    
+    # Additional IAM permissions for CloudWatch
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - cloudwatch:PutMetricData
+        Resource: "*"
+
+# Resources (DynamoDB, etc.)
+resources:
+  Resources:
+    # DynamoDB table for session storage
+    SessionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: mcp-server-sessions-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: session_id
+            AttributeType: S
+          - AttributeName: user_id
+            AttributeType: S
+          - AttributeName: created_at
+            AttributeType: N
+        KeySchema:
+          - AttributeName: session_id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: UserIndex
+            KeySchema:
+              - AttributeName: user_id
+                KeyType: HASH
+              - AttributeName: created_at
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
+        
+        # Enable point-in-time recovery
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        
+        # Server-side encryption
+        SSESpecification:
+          SSEEnabled: true
+          
+        # Tags
+        Tags:
+          - Key: Service
+            Value: mcp-server
+          - Key: Stage
+            Value: ${self:provider.stage}
+    
+    # CloudWatch Log Group with retention
+    McpServerLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/lambda/mcp-server-${self:provider.stage}
+        RetentionInDays: 30
+    
+    # KMS Key for encryption
+    McpServerKmsKey:
+      Type: AWS::KMS::Key
+      Properties:
+        Description: MCP Server encryption key
+        KeyPolicy:
+          Statement:
+            - Sid: Enable IAM User Permissions
+              Effect: Allow
+              Principal:
+                AWS: arn:aws:iam::${aws:AccountId}:root
+              Action: kms:*
+              Resource: "*"
+            - Sid: Allow Lambda function
+              Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action:
+                - kms:Decrypt
+                - kms:GenerateDataKey
+              Resource: "*"
+    
+    # KMS Key Alias
+    McpServerKmsKeyAlias:
+      Type: AWS::KMS::Alias
+      Properties:
+        AliasName: alias/mcp-server-${self:provider.stage}
+        TargetKeyId: !Ref McpServerKmsKey
+
+  Outputs:
+    McpServerApi:
+      Description: API Gateway endpoint URL
+      Value:
+        Fn::Join:
+          - ''
+          - - https://
+            - Ref: HttpApi
+            - .execute-api.
+            - ${self:provider.region}
+            - .amazonaws.com
+    
+    McpServerFunction:
+      Description: MCP Server Lambda Function ARN
+      Value:
+        Fn::GetAtt: [McpServerLambdaFunction, Arn]
+    
+    SessionsTableName:
+      Description: DynamoDB Sessions Table Name
+      Value: !Ref SessionsTable
+
+# Plugins
+plugins:
+  - serverless-python-requirements
+  - serverless-domain-manager
+  - serverless-plugin-tracing
+  - serverless-plugin-aws-alerts
+  - serverless-dynamodb-autoscaling

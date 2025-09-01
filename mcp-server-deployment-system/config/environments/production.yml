@@ -1,0 +1,141 @@
+# Production environment configuration overlay
+# Inherits from base.yml and overrides specific settings
+
+# Production server configuration
+server:
+  workers: 8
+  max_requests: 2000
+  timeout: 60
+
+# Production resource configuration
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+    ephemeral_storage: 2Gi
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+    ephemeral_storage: 5Gi
+
+# Production scaling configuration
+scaling:
+  min_replicas: 3
+  max_replicas: 50
+  target_cpu_utilization: 60
+  target_memory_utilization: 70
+
+# Production database configuration
+database:
+  pool_size: 20
+  max_overflow: 40
+  pool_timeout: 60
+  ssl_mode: "require"
+  connection_timeout: 10
+  read_replicas_enabled: true
+
+# Production cache configuration
+cache:
+  ttl: 7200
+  max_connections: 50
+  cluster_mode: true
+  persistence_enabled: true
+
+# Production security configuration
+security:
+  cors_enabled: false  # Strict CORS in production
+  cors_origins: ["https://api.mcpserver.com", "https://mcpserver.com"]
+  rate_limiting:
+    requests_per_minute: 120
+    burst_size: 20
+  session_timeout: 900
+  tls_required: true
+  client_cert_validation: true
+  audit_logging: true
+
+# Production monitoring configuration
+monitoring:
+  detailed_metrics: true
+  custom_metrics: true
+  distributed_tracing: true
+  error_tracking: true
+  performance_monitoring: true
+  sla_monitoring: true
+  alerting_enabled: true
+
+# Production logging configuration
+logging:
+  level: "INFO"
+  audit_logging: true
+  error_detail_level: "minimal"  # Don't expose sensitive data
+  log_retention_days: 90
+  centralized_logging: true
+  structured_logging: true
+
+# Production features
+features:
+  async_processing: true
+  background_tasks: true
+  websocket_support: true
+  advanced_caching: true
+  compression: true
+  cdn_integration: true
+
+# Production integrations
+integrations:
+  external_apis:
+    timeout: 45
+    retry_attempts: 5
+    circuit_breaker: true
+  
+  message_queue:
+    enabled: true
+    type: "redis-cluster"
+    persistence: true
+    
+  file_storage:
+    type: "s3"
+    encryption: true
+    versioning: true
+    lifecycle_policies: true
+
+# Production backup configuration
+backup:
+  enabled: true
+  schedule: "0 1 * * *"  # Daily at 1 AM
+  retention_days: 365
+  cross_region_replication: true
+  encryption: true
+  verification: true
+
+# Production maintenance configuration
+maintenance:
+  window_enabled: true
+  window_start: "03:00"
+  window_duration: "1h"
+  timezone: "UTC"
+  notification_enabled: true
+
+# High availability configuration
+availability:
+  multi_region: true
+  failover_enabled: true
+  health_check_interval: 10
+  unhealthy_threshold: 3
+  recovery_timeout: 300
+
+# Performance optimization
+performance:
+  connection_pooling: true
+  query_optimization: true
+  index_optimization: true
+  memory_optimization: true
+  cpu_optimization: true
+
+# Compliance configuration
+compliance:
+  data_residency_enforcement: true
+  gdpr_compliance: true
+  hipaa_compliance: false  # Enable for healthcare deployments
+  audit_trail: true
+  data_encryption: true

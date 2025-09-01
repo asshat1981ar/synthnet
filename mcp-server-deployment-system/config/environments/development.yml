@@ -1,0 +1,125 @@
+# Development environment configuration overlay
+# Inherits from base.yml and overrides specific settings for development
+
+# Development server configuration
+server:
+  workers: 2
+  max_requests: 500
+  timeout: 120  # Longer timeout for debugging
+  debug_mode: true
+  auto_reload: true
+
+# Development resource configuration (minimal)
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+    ephemeral_storage: 512Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+    ephemeral_storage: 1Gi
+
+# Development scaling (no auto-scaling)
+scaling:
+  min_replicas: 1
+  max_replicas: 2
+  target_cpu_utilization: 80
+  target_memory_utilization: 85
+
+# Development database configuration
+database:
+  pool_size: 5
+  max_overflow: 10
+  echo: true  # Log SQL queries
+  ssl_mode: "disable"  # No SSL in development
+  debug_logging: true
+
+# Development cache configuration
+cache:
+  ttl: 300  # Short TTL for development
+  max_connections: 5
+  cluster_mode: false
+
+# Development security configuration (relaxed)
+security:
+  cors_enabled: true
+  cors_origins: ["*"]  # Allow all origins in development
+  rate_limiting:
+    enabled: false  # Disable rate limiting in development
+  session_timeout: 3600  # Longer sessions for development
+  csrf_protection: false  # Disable for easier testing
+  tls_required: false
+
+# Development monitoring configuration
+monitoring:
+  detailed_metrics: true
+  debug_endpoints: true
+  profiling_enabled: true
+  trace_all_requests: true
+
+# Development logging configuration
+logging:
+  level: "DEBUG"
+  audit_logging: false
+  error_detail_level: "full"  # Full error details in development
+  console_logging: true
+  file_logging: false
+  request_body_logging: true
+  response_body_logging: true
+
+# Development features (all enabled for testing)
+features:
+  async_processing: true
+  background_tasks: true
+  websocket_support: true
+  file_upload_support: true
+  caching: false  # Disable caching to see fresh data
+  compression: false
+  hot_reload: true
+
+# Development integrations
+integrations:
+  external_apis:
+    timeout: 60  # Longer timeout for debugging
+    retry_attempts: 1  # Don't retry in development
+    mock_responses: true  # Use mocks when possible
+  
+  message_queue:
+    enabled: false  # Use in-memory queues
+    
+  file_storage:
+    type: "local"
+    base_path: "/tmp/mcp-dev-storage"
+
+# Development backup configuration (disabled)
+backup:
+  enabled: false
+
+# Development maintenance (no maintenance windows)
+maintenance:
+  window_enabled: false
+
+# Development-specific settings
+development:
+  hot_reload: true
+  debug_toolbar: true
+  sql_echo: true
+  template_auto_reload: true
+  static_file_serving: true
+  error_pages_detailed: true
+  
+# Development testing
+testing:
+  test_data_enabled: true
+  mock_external_services: true
+  seed_database: true
+  test_user_accounts: true
+
+# Development tools
+dev_tools:
+  profiler: true
+  debugger: true
+  code_reloading: true
+  template_debugging: true
+  asset_debugging: true

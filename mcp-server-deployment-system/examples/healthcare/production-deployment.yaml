@@ -1,0 +1,537 @@
+# Healthcare FHIR Server - Production Deployment Configuration
+# HIPAA Compliant, High Availability, Multi-Region Setup
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: healthcare-fhir-prod
+  labels:
+    environment: production
+    compliance: hipaa
+    criticality: high
+  annotations:
+    description: "HIPAA-compliant healthcare FHIR server production environment"
+
+---
+# ConfigMap for healthcare-specific configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: healthcare-fhir-config
+  namespace: healthcare-fhir-prod
+  labels:
+    app: healthcare-fhir-server
+    component: config
+data:
+  app.yml: |
+    server:
+      host: "0.0.0.0"
+      port: 8000
+      workers: 8
+      timeout: 60
+      keepalive: 5
+      max_requests: 2000
+    
+    healthcare:
+      fhir_version: "R4"
+      hl7_compliance: true
+      hipaa_audit_logging: true
+      phi_encryption_required: true
+      patient_consent_required: true
+      
+    security:
+      cors_enabled: false  # Strict CORS for healthcare
+      ssl_required: true
+      client_cert_required: true
+      audit_all_access: true
+      session_timeout: 900  # 15 minutes for HIPAA compliance
+      
+    database:
+      pool_size: 20
+      max_overflow: 40
+      pool_timeout: 60
+      encryption_at_rest: true
+      backup_encryption: true
+      
+    audit:
+      enabled: true
+      log_level: "TRACE"
+      include_request_body: true
+      include_response_body: false  # Don't log PHI in responses
+      retention_days: 2555  # 7 years for HIPAA
+      
+    monitoring:
+      enabled: true
+      phi_scrubbing: true
+      anonymize_patient_data: true
+
+---
+# Secret for healthcare-specific credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: healthcare-fhir-secrets
+  namespace: healthcare-fhir-prod
+  labels:
+    app: healthcare-fhir-server
+    component: security
+type: Opaque
+stringData:
+  # Database (encrypted at rest)
+  database-url: "postgresql://fhir_user:secure_password@healthcare-db:5432/fhir_prod?sslmode=require"
+  
+  # FHIR server credentials
+  fhir-client-id: "healthcare-mcp-client"
+  fhir-client-secret: "secure-fhir-client-secret"
+  
+  # Audit trail signing key
+  audit-signing-key: "audit-trail-hmac-key"
+  
+  # PHI encryption key (rotate regularly)
+  phi-encryption-key: "phi-data-encryption-key-256bit"
+  
+  # Client certificate for mutual TLS
+  client-cert: |
+    -----BEGIN CERTIFICATE-----
+    ... (client certificate for healthcare system integration)
+    -----END CERTIFICATE-----
+  
+  client-key: |
+    -----BEGIN PRIVATE KEY-----
+    ... (private key for client certificate)
+    -----END PRIVATE KEY-----
+
+---
+# Deployment with healthcare-specific configuration
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: healthcare-fhir-server
+  namespace: healthcare-fhir-prod
+  labels:
+    app: healthcare-fhir-server
+    component: api
+    tier: backend
+    compliance: hipaa
+spec:
+  replicas: 3  # High availability
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # Ensure zero downtime for healthcare
+  
+  selector:
+    matchLabels:
+      app: healthcare-fhir-server
+  
+  template:
+    metadata:
+      labels:
+        app: healthcare-fhir-server
+        component: api
+        tier: backend
+        compliance: hipaa
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+        # Healthcare-specific annotations
+        healthcare.io/phi-present: "true"
+        healthcare.io/audit-required: "true"
+        security.io/encryption-required: "true"
+    
+    spec:
+      # Enhanced security context for healthcare
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 2000
+        runAsGroup: 2000
+        fsGroup: 2000
+        seccompProfile:
+          type: RuntimeDefault
+        supplementalGroups: [3000]  # Healthcare group
+      
+      serviceAccountName: healthcare-fhir-server
+      
+      # Node selection for compliance zones
+      nodeSelector:
+        compliance: hipaa-certified
+        zone: healthcare
+        encryption: hardware-accelerated
+      
+      # Pod anti-affinity for high availability
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - healthcare-fhir-server
+            topologyKey: kubernetes.io/hostname
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: compliance
+                operator: In
+                values:
+                - hipaa-certified
+              - key: zone
+                operator: In
+                values:
+                - healthcare
+                - secure
+      
+      # Tolerations for dedicated healthcare nodes
+      tolerations:
+      - key: "healthcare-only"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      - key: "phi-workload"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      
+      containers:
+      - name: healthcare-fhir-server
+        image: mcp-server/healthcare-fhir:latest
+        imagePullPolicy: Always
+        
+        # Enhanced security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        
+        ports:
+        - name: https
+          containerPort: 8443  # HTTPS only for healthcare
+          protocol: TCP
+        - name: health
+          containerPort: 8001
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: HEALTHCARE_MODE
+          value: "true"
+        - name: HIPAA_COMPLIANCE
+          value: "true"
+        - name: PHI_ENCRYPTION_ENABLED
+          value: "true"
+        - name: AUDIT_LEVEL
+          value: "COMPREHENSIVE"
+        - name: TLS_ENABLED
+          value: "true"
+        - name: MUTUAL_TLS_REQUIRED
+          value: "true"
+        
+        # Secrets mounted as environment variables
+        envFrom:
+        - secretRef:
+            name: healthcare-fhir-secrets
+        
+        # Resource requests and limits for healthcare workloads
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+            ephemeral-storage: 2Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+            ephemeral-storage: 5Gi
+        
+        # Volume mounts for healthcare compliance
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+          readOnly: false
+        - name: audit-logs
+          mountPath: /app/audit-logs
+          readOnly: false
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        - name: tls-certs
+          mountPath: /app/certs
+          readOnly: true
+        - name: phi-encryption-keys
+          mountPath: /app/keys
+          readOnly: true
+        
+        # Enhanced health checks for healthcare
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: health
+            scheme: HTTP
+            httpHeaders:
+            - name: Health-Check-Type
+              value: liveness
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 15
+          failureThreshold: 3
+          successThreshold: 1
+        
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: health
+            scheme: HTTP
+            httpHeaders:
+            - name: Health-Check-Type
+              value: readiness
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 5
+          successThreshold: 1
+        
+        # Startup probe for healthcare services
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: health
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 15
+          successThreshold: 1
+      
+      # Audit logging sidecar for HIPAA compliance
+      - name: audit-logger
+        image: healthcare-audit-logger:latest
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        
+        env:
+        - name: AUDIT_DESTINATION
+          value: "secure-audit-endpoint"
+        - name: ENCRYPTION_ENABLED
+          value: "true"
+        
+        volumeMounts:
+        - name: audit-logs
+          mountPath: /audit-logs
+          readOnly: true
+        - name: audit-config
+          mountPath: /config
+          readOnly: true
+      
+      # TLS termination proxy for mutual TLS
+      - name: tls-proxy
+        image: nginx:alpine
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        
+        ports:
+        - name: https-proxy
+          containerPort: 443
+          protocol: TCP
+        
+        volumeMounts:
+        - name: tls-proxy-config
+          mountPath: /etc/nginx/conf.d
+          readOnly: true
+        - name: tls-certs
+          mountPath: /etc/nginx/ssl
+          readOnly: true
+      
+      volumes:
+      - name: tmp-volume
+        emptyDir: 
+          sizeLimit: 1Gi
+      - name: audit-logs
+        persistentVolumeClaim:
+          claimName: healthcare-audit-pvc
+      - name: config-volume
+        configMap:
+          name: healthcare-fhir-config
+      - name: tls-certs
+        secret:
+          secretName: healthcare-tls-certs
+      - name: phi-encryption-keys
+        secret:
+          secretName: phi-encryption-keys
+      - name: audit-config
+        configMap:
+          name: healthcare-audit-config
+      - name: tls-proxy-config
+        configMap:
+          name: healthcare-tls-proxy-config
+      
+      # DNS and termination settings
+      dnsPolicy: ClusterFirst
+      terminationGracePeriodSeconds: 60  # Allow time for audit log flushing
+
+---
+# Service with healthcare-specific configuration
+apiVersion: v1
+kind: Service
+metadata:
+  name: healthcare-fhir-server
+  namespace: healthcare-fhir-prod
+  labels:
+    app: healthcare-fhir-server
+    component: api
+    compliance: hipaa
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:123456789:certificate/healthcare-cert"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "https"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "tcp"
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-timeout: "60"
+    # Healthcare-specific annotations
+    healthcare.io/hipaa-compliant: "true"
+    healthcare.io/audit-required: "true"
+spec:
+  type: LoadBalancer
+  ports:
+  - name: https
+    port: 443
+    targetPort: https-proxy
+    protocol: TCP
+  - name: health
+    port: 8001
+    targetPort: health
+    protocol: TCP
+  selector:
+    app: healthcare-fhir-server
+  sessionAffinity: ClientIP  # Important for healthcare sessions
+
+---
+# HorizontalPodAutoscaler with healthcare-specific metrics
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: healthcare-fhir-server-hpa
+  namespace: healthcare-fhir-prod
+  labels:
+    app: healthcare-fhir-server
+    component: autoscaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: healthcare-fhir-server
+  
+  minReplicas: 3  # Always maintain minimum for healthcare availability
+  maxReplicas: 20  # Scale for peak healthcare loads
+  
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60  # Conservative for healthcare workloads
+  
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 70
+  
+  # Healthcare-specific custom metrics
+  - type: Pods
+    pods:
+      metric:
+        name: healthcare_active_patient_sessions
+      target:
+        type: AverageValue
+        averageValue: "50"  # Scale based on active patient sessions
+  
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600  # Slower scale down for healthcare
+      policies:
+      - type: Percent
+        value: 5  # Very conservative scale down
+        periodSeconds: 120
+      selectPolicy: Min
+    
+    scaleUp:
+      stabilizationWindowSeconds: 120
+      policies:
+      - type: Percent
+        value: 25
+        periodSeconds: 60
+      selectPolicy: Max
+
+---
+# Network Policy for healthcare isolation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: healthcare-fhir-network-policy
+  namespace: healthcare-fhir-prod
+  labels:
+    app: healthcare-fhir-server
+    component: security
+spec:
+  podSelector:
+    matchLabels:
+      app: healthcare-fhir-server
+  
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Only allow ingress from healthcare-approved sources
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          compliance: hipaa
+    - podSelector:
+        matchLabels:
+          component: healthcare-gateway
+    ports:
+    - protocol: TCP
+      port: 8443
+    - protocol: TCP
+      port: 8001  # Health checks
+  
+  egress:
+  # Only allow egress to approved healthcare systems
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          component: healthcare-database
+    ports:
+    - protocol: TCP
+      port: 5432  # PostgreSQL
+  
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          component: audit-system
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS audit endpoint
+  
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53

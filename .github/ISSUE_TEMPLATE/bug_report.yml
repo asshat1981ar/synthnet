@@ -1,0 +1,126 @@
+name: 🐛 Bug Report
+description: File a bug report to help us improve
+title: "[BUG] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the form below with as much detail as possible.
+
+  - type: input
+    id: summary
+    attributes:
+      label: Bug Summary
+      description: A brief description of what went wrong
+      placeholder: "The AI reasoning component crashes when processing complex queries"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Detailed Description
+      description: Provide a clear and detailed description of the bug
+      placeholder: |
+        - What were you trying to do?
+        - What actually happened?
+        - What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: List the exact steps to reproduce the issue
+      placeholder: |
+        1. Launch the app
+        2. Navigate to AI Reasoning section
+        3. Enter a complex query: "..."
+        4. Tap Process button
+        5. App crashes
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component is affected?
+      options:
+        - AI/ML Components
+        - Communication Protocols
+        - User Interface
+        - Database
+        - Networking
+        - Testing Framework
+        - Build System
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: android_version
+    attributes:
+      label: Android Version
+      description: What version of Android are you running?
+      placeholder: "Android 14 (API 34)"
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device Information
+      description: What device are you using?
+      placeholder: "Google Pixel 8 Pro"
+    validations:
+      required: true
+
+  - type: input
+    id: app_version
+    attributes:
+      label: App Version
+      description: What version of SynthNet AI App are you using?
+      placeholder: "v1.2.3 (Build 456)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Please paste any relevant log output here
+      placeholder: |
+        Paste logs here (use adb logcat or Android Studio Logcat)
+      render: shell
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain your problem
+      placeholder: Drag and drop images here
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      description: Please ensure you've completed these steps
+      options:
+        - label: I have searched for existing issues
+          required: true
+        - label: I have provided all required information
+          required: true
+        - label: I have tested on the latest version
+          required: true
+        - label: I have included relevant logs/screenshots
+          required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here
+      placeholder: Any additional information that might be helpful

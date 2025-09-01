@@ -1,0 +1,386 @@
+name: Android CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+  schedule:
+    - cron: '0 2 * * *' # Daily at 2 AM UTC
+
+env:
+  JAVA_VERSION: '17'
+  ANDROID_COMPILE_SDK: '34'
+  ANDROID_BUILD_TOOLS: '34.0.0'
+  ANDROID_MIN_SDK: '26'
+  ANDROID_TARGET_SDK: '34'
+
+jobs:
+  lint:
+    name: Code Quality & Linting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up JDK
+      uses: actions/setup-java@v3
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+      with:
+        api-level: ${{ env.ANDROID_COMPILE_SDK }}
+        build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+
+    - name: Cache Gradle packages
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+
+    - name: Make gradlew executable
+      run: chmod +x ./gradlew
+
+    - name: Run Kotlin linter
+      run: ./gradlew ktlintCheck
+
+    - name: Run Android Lint
+      run: ./gradlew lintDebug
+
+    - name: Upload lint reports
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: lint-reports
+        path: |
+          app/build/reports/lint-results-debug.html
+          app/build/reports/ktlint/
+
+  test:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    
+    strategy:
+      matrix:
+        api-level: [26, 30, 34]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK
+      uses: actions/setup-java@v3
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+      with:
+        api-level: ${{ matrix.api-level }}
+        build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+
+    - name: Cache Gradle packages
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+
+    - name: Make gradlew executable
+      run: chmod +x ./gradlew
+
+    - name: Run unit tests
+      run: ./gradlew testDebugUnitTest
+
+    - name: Run instrumented tests
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: ${{ matrix.api-level }}
+        target: google_apis
+        arch: x86_64
+        profile: Nexus 6
+        script: ./gradlew connectedAndroidTest
+
+    - name: Generate test report
+      run: ./gradlew jacocoTestReport
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.api-level }}
+        path: |
+          app/build/reports/tests/
+          app/build/reports/coverage/
+
+    - name: Upload to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./app/build/reports/coverage/test/debug/report.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  security:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+    needs: lint
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+    - name: OWASP Dependency Check
+      uses: dependency-check/Dependency-Check_Action@main
+      with:
+        project: 'SynthNet AI App'
+        path: '.'
+        format: 'ALL'
+
+    - name: Upload OWASP results
+      uses: actions/upload-artifact@v3
+      with:
+        name: owasp-reports
+        path: reports/
+
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK
+      uses: actions/setup-java@v3
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+      with:
+        api-level: ${{ env.ANDROID_COMPILE_SDK }}
+        build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+
+    - name: Cache Gradle packages
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+
+    - name: Make gradlew executable
+      run: chmod +x ./gradlew
+
+    - name: Decode Keystore
+      if: github.event_name != 'pull_request'
+      env:
+        ENCODED_STRING: ${{ secrets.SIGNING_KEY_STORE_BASE64 }}
+      run: |
+        TMP_KEYSTORE_FILE_PATH="${RUNNER_TEMP}"/app_keystore
+        mkdir -p "${TMP_KEYSTORE_FILE_PATH}"
+        echo $ENCODED_STRING | base64 -di > "${TMP_KEYSTORE_FILE_PATH}"/synthnet_keystore.jks
+
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug
+
+    - name: Build Release APK
+      if: github.event_name != 'pull_request'
+      env:
+        SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+        SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+      run: ./gradlew assembleRelease
+
+    - name: Build AAB (App Bundle)
+      if: github.event_name != 'pull_request'
+      env:
+        SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+        SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+      run: ./gradlew bundleRelease
+
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: debug-apk
+        path: app/build/outputs/apk/debug/app-debug.apk
+
+    - name: Upload Release APK
+      if: github.event_name != 'pull_request'
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-apk
+        path: app/build/outputs/apk/release/app-release.apk
+
+    - name: Upload AAB
+      if: github.event_name != 'pull_request'
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-aab
+        path: app/build/outputs/bundle/release/app-release.aab
+
+  ai-assisted-review:
+    name: AI-Assisted Code Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Claude Code Review
+      uses: anthropics/claude-code-review@v1
+      with:
+        anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+        review-level: 'comprehensive'
+        focus-areas: 'performance,security,maintainability'
+        
+    - name: Gemini Code Analysis
+      uses: google/gemini-code-analysis@v1
+      with:
+        google-api-key: ${{ secrets.GOOGLE_AI_API_KEY }}
+        analysis-type: 'code-quality'
+        
+    - name: GitHub Copilot Suggestions
+      uses: github/copilot-cli@v1
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        suggest-improvements: true
+
+  performance:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download APK
+      uses: actions/download-artifact@v3
+      with:
+        name: debug-apk
+
+    - name: Setup Android Emulator
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 30
+        target: google_apis
+        arch: x86_64
+        profile: Nexus 6
+        script: |
+          adb install app-debug.apk
+          ./gradlew runPerformanceTests
+
+    - name: Upload performance reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-reports
+        path: app/build/reports/performance/
+
+  deploy:
+    name: Deploy to Play Store
+    runs-on: ubuntu-latest
+    needs: [build, test, security, performance]
+    if: (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download AAB
+      uses: actions/download-artifact@v3
+      with:
+        name: release-aab
+
+    - name: Deploy to Play Store Internal Testing
+      uses: r0adkll/upload-google-play@v1
+      with:
+        serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
+        packageName: com.synthnet.aiapp
+        releaseFiles: app-release.aab
+        track: internal
+        status: completed
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          app-release.apk
+          app-release.aab
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notification:
+    name: Notifications
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always()
+    
+    steps:
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#synthnet-ci'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        
+    - name: Notify Teams
+      uses: jdcargile/ms-teams-notification@v1.3
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK }}
+        notification-summary: 'SynthNet AI App Build ${{ job.status }}'
+        notification-color: ${{ job.status == 'success' && 'good' || 'danger' }}
+
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [deploy, notification]
+    if: always()
+    
+    steps:
+    - name: Clean up old artifacts
+      uses: geekyeggo/delete-artifact@v2
+      with:
+        name: |
+          debug-apk
+          test-results-*
+        failOnError: false
