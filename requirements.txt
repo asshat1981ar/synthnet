@@ -25,7 +25,11 @@ mypy>=1.5.0
 isort>=5.12.0
 flake8>=6.0.0
 
-# AI Integration Tools
+# Model Context Protocol (MCP) - Critical for SynthNet AI
+mcp>=1.0.0
+websockets>=11.0.0
+
+# AI Integration Tools  
 openai>=1.0.0  # For OpenAI API integration
 anthropic>=0.7.0  # For Claude API integration
 google-generativeai>=0.3.0  # For Gemini integration
@@ -45,7 +49,9 @@ uvicorn>=0.23.0   # ASGI server
 # Data Processing and Analysis
 jsonschema>=4.18.0
 pyyaml>=6.0.0
+tomli-w>=1.0.0
 toml>=0.10.0
+jinja2>=3.1.0
 click>=8.1.0
 
 # Performance and Monitoring
