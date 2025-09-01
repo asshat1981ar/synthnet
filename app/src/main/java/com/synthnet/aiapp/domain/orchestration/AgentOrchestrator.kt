@@ -21,6 +21,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import android.util.Log
 import javax.inject.Inject
@@ -46,6 +49,7 @@ import kotlin.math.max
  * @param collaborationManager Real-time collaboration coordination
  * @param antifragileSystem Error recovery and system resilience
  * @param aiServiceIntegration AI service integration layer
+ * @param applicationScope A CoroutineScope tied to the application's lifecycle for background tasks.
  */
 @Singleton
 class AgentOrchestrator @Inject constructor(
@@ -56,7 +60,8 @@ class AgentOrchestrator @Inject constructor(
     private val rmpEngine: RecursiveMetaPrompting,
     private val collaborationManager: CollaborationManager,
     private val antifragileSystem: AntifragileSystem,
-    private val aiServiceIntegration: AIServiceIntegration
+    private val aiServiceIntegration: AIServiceIntegration,
+    private val applicationScope: CoroutineScope // Injected application-level scope
 ) {
     private val _orchestrationState = MutableStateFlow(OrchestrationState())
     val orchestrationState: StateFlow<OrchestrationState> = _orchestrationState.asStateFlow()
@@ -90,14 +95,18 @@ class AgentOrchestrator @Inject constructor(
             )
             
             val agents = agentRepository.getAgentsByProject(projectId)
-            val activeAgents = selectRelevantAgents(agents, input, context)
+            val activeAgentsResult = withContext(Dispatchers.Default) { // Offload computation
+                selectRelevantAgents(agents, input, context)
+            }
+            
+            val activeAgents = activeAgentsResult.getOrElse { throw it }
             
             if (activeAgents.isEmpty()) {
                 throw IllegalStateException("No suitable agents available for project $projectId")
             }
             
             // Update agent statuses to THINKING
-            coroutineScope {
+            coroutineScope { // Use coroutineScope to ensure all updates complete before proceeding
                 activeAgents.map { agent ->
                     async {
                         updateAgentStatus(agent.id, AgentStatus.THINKING)
@@ -141,7 +150,11 @@ class AgentOrchestrator @Inject constructor(
             
             // Step 4: Generate synthesized response
             Log.d(TAG, "Synthesizing response from thought tree and collaboration")
-            val response = synthesizeResponse(thoughtTree, collaboration)
+            val responseResult = withContext(Dispatchers.Default) { // Offload computation
+                synthesizeResponse(thoughtTree, collaboration)
+            }
+            
+            val response = responseResult.getOrElse { throw it }
             
             _orchestrationState.value = _orchestrationState.value.copy(
                 currentTask = "Optimizing response quality"
@@ -152,7 +165,7 @@ class AgentOrchestrator @Inject constructor(
             val optimizedResponse = rmpEngine.optimizeResponse(response, context)
             
             // Update agent statuses back to IDLE
-            coroutineScope {
+            coroutineScope { // Use coroutineScope to ensure all updates complete before proceeding
                 activeAgents.map { agent ->
                     async {
                         updateAgentStatus(agent.id, AgentStatus.IDLE)
@@ -175,12 +188,14 @@ class AgentOrchestrator @Inject constructor(
             Log.e(TAG, "Error processing user input", e)
             
             // Reset agent statuses on error
-            try {
+            applicationScope.launch { // Launch in applicationScope as it's a fire-and-forget cleanup
                 _orchestrationState.value.activeAgents.forEach { agent ->
-                    updateAgentStatus(agent.id, AgentStatus.ERROR)
+                    try {
+                        updateAgentStatus(agent.id, AgentStatus.ERROR)
+                    } catch (resetError: Exception) {
+                        Log.e(TAG, "Error resetting agent statuses", resetError)
+                    }
                 }
-            } catch (resetError: Exception) {
-                Log.e(TAG, "Error resetting agent statuses", resetError)
             }
             
             _orchestrationState.value = _orchestrationState.value.copy(
@@ -228,7 +243,9 @@ class AgentOrchestrator @Inject constructor(
         }
         
         // Validate path coherence
-        val pathValidation = validateThoughtPath(selectedThoughts)
+        val pathValidation = withContext(Dispatchers.Default) { // Offload computation
+            validateThoughtPath(selectedThoughts)
+        }
         if (!pathValidation.isValid) {
             return@executeWithFallback Result.failure(
                 IllegalArgumentException("Invalid thought path: ${pathValidation.reason}")
@@ -237,15 +254,21 @@ class AgentOrchestrator @Inject constructor(
         
         // Mark thoughts as selected in the repository
         selectedThoughts.forEach { thought ->
-            try {
-                thoughtRepository.selectThought(thought.id)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to mark thought ${thought.id} as selected", e)
+            applicationScope.launch { // Launch in applicationScope as it's a fire-and-forget update
+                try {
+                    thoughtRepository.selectThought(thought.id)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to mark thought ${thought.id} as selected", e)
+                }
             }
         }
         
         // Generate response based on selected path
-        val response = generatePathResponse(selectedThoughts)
+        val responseResult = withContext(Dispatchers.Default) { // Offload computation
+            generatePathResponse(selectedThoughts)
+        }
+        
+        val response = responseResult.getOrElse { throw it }
         
         _orchestrationState.value = _orchestrationState.value.copy(
             isProcessing = false,
@@ -269,8 +292,8 @@ class AgentOrchestrator @Inject constructor(
         agents: Flow<List<Agent>>,
         input: String,
         context: ProjectContext
-    ): List<Agent> {
-        return try {
+    ): Result<List<Agent>> = withContext(Dispatchers.Default) { // Ensure this computation is offloaded
+        return@withContext try {
             val allAgents = agents.first()
             val availableAgents = allAgents.filter { agent ->
                 agent.status in listOf(AgentStatus.IDLE, AgentStatus.THINKING)
@@ -278,7 +301,7 @@ class AgentOrchestrator @Inject constructor(
             
             if (availableAgents.isEmpty()) {
                 Log.w(TAG, "No available agents found, using all agents")
-                return allAgents.take(MAX_CONCURRENT_AGENTS)
+                return@withContext Result.success(allAgents.take(MAX_CONCURRENT_AGENTS))
             }
             
             // Calculate relevance scores for each agent
@@ -292,11 +315,11 @@ class AgentOrchestrator @Inject constructor(
             
             Log.d(TAG, "Selected ${selectedAgents.size} agents: ${selectedAgents.map { "${it.role}(${it.metrics.successRate})" }}")
             
-            selectedAgents
+            Result.success(selectedAgents)
         } catch (e: Exception) {
             Log.e(TAG, "Error selecting agents", e)
             // Fallback to default agent selection
-            agents.first().take(3)
+            Result.failure(e)
         }
     }
     
@@ -307,14 +330,14 @@ class AgentOrchestrator @Inject constructor(
         agent: Agent,
         input: String,
         context: ProjectContext
-    ): Double {
+    ): Double = withContext(Dispatchers.Default) { // Ensure this computation is offloaded
         val roleWeight = getRoleWeight(agent.role, input)
         val performanceScore = agent.metrics.successRate
         val loadScore = 1.0 - (agent.metrics.averageResponseTime / MAX_RESPONSE_TIME)
         val contextRelevance = calculateContextRelevance(agent, context)
         val capabilityMatch = calculateCapabilityMatch(agent.capabilities, input)
         
-        return (roleWeight * 0.3 + 
+        return@withContext (roleWeight * 0.3 + 
                 performanceScore * 0.25 + 
                 loadScore.coerceIn(0.0, 1.0) * 0.15 + 
                 contextRelevance * 0.15 + 
@@ -406,8 +429,8 @@ class AgentOrchestrator @Inject constructor(
     private suspend fun synthesizeResponse(
         thoughtTree: ThoughtTree,
         collaboration: Collaboration
-    ): AgentResponse {
-        return try {
+    ): Result<AgentResponse> = withContext(Dispatchers.Default) { // Ensure this computation is offloaded
+        return@withContext try {
             // Extract best thoughts from the tree
             val bestThoughts = extractBestThoughts(thoughtTree)
             val collaborativeInsights = extractCollaborativeInsights(collaboration)
@@ -418,7 +441,7 @@ class AgentOrchestrator @Inject constructor(
             val overallConfidence = calculateSynthesizedConfidence(bestThoughts, collaboration)
             val alternatives = generateSynthesizedAlternatives(bestThoughts)
             
-            AgentResponse(
+            Result.success(AgentResponse(
                 agentId = "orchestrator",
                 content = synthesizedContent,
                 reasoning = synthesizedReasoning,
@@ -431,11 +454,11 @@ class AgentOrchestrator @Inject constructor(
                     "consensus_reached" to collaboration.consensusReached.toString()
                 ),
                 timestamp = Clock.System.now()
-            )
+            ))
         } catch (e: Exception) {
             Log.e(TAG, "Error synthesizing response", e)
             // Fallback to simple synthesis
-            createFallbackResponse(thoughtTree, collaboration)
+            Result.failure(e)
         }
     }
     
@@ -463,11 +486,11 @@ class AgentOrchestrator @Inject constructor(
     private suspend fun synthesizeContent(
         thoughts: List<Thought>,
         collaborativeInsights: List<String>
-    ): String {
-        if (thoughts.isEmpty()) return "Unable to generate comprehensive response."
+    ): String = withContext(Dispatchers.Default) { // Ensure this computation is offloaded
+        if (thoughts.isEmpty()) return@withContext "Unable to generate comprehensive response."
         
         val primaryThought = thoughts.maxByOrNull { it.confidence }
-            ?: return "No high-confidence thoughts available."
+            ?: return@withContext "No high-confidence thoughts available."
         
         val supportingThoughts = thoughts.filter { it.id != primaryThought.id }
             .take(3)
@@ -496,7 +519,7 @@ class AgentOrchestrator @Inject constructor(
             }
         }
         
-        return synthesisBuilder.toString().trim()
+        return@withContext synthesisBuilder.toString().trim()
     }
     
     /**
@@ -612,18 +635,18 @@ class AgentOrchestrator @Inject constructor(
     /**
      * Generates a comprehensive response based on a selected thought path
      */
-    private suspend fun generatePathResponse(thoughts: List<Thought>): AgentResponse {
+    private suspend fun generatePathResponse(thoughts: List<Thought>): Result<AgentResponse> = withContext(Dispatchers.Default) { // Ensure this computation is offloaded
         if (thoughts.isEmpty()) {
-            return createEmptyPathResponse()
+            return@withContext Result.success(createEmptyPathResponse())
         }
         
-        return try {
+        return@withContext try {
             val pathContent = synthesizePathContent(thoughts)
             val pathReasoning = buildPathReasoning(thoughts)
             val pathConfidence = calculatePathConfidence(thoughts)
             val pathAlternatives = generatePathAlternatives(thoughts)
             
-            AgentResponse(
+            Result.success(AgentResponse(
                 agentId = "orchestrator",
                 content = pathContent,
                 reasoning = pathReasoning,
@@ -635,10 +658,10 @@ class AgentOrchestrator @Inject constructor(
                     "avg_confidence" to thoughts.map { it.confidence }.average().toString()
                 ),
                 timestamp = Clock.System.now()
-            )
+            ))
         } catch (e: Exception) {
             Log.e(TAG, "Error generating path response", e)
-            createEmptyPathResponse()
+            Result.failure(e)
         }
     }
     
@@ -802,19 +825,23 @@ class AgentOrchestrator @Inject constructor(
             
             // End all active collaborations
             _orchestrationState.value.activeCollaborations.forEach { collaboration ->
-                try {
-                    collaborationManager.endCollaboration(collaboration.id)
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error ending collaboration ${collaboration.id}", e)
+                applicationScope.launch { // Launch in applicationScope for fire-and-forget
+                    try {
+                        collaborationManager.endCollaboration(collaboration.id)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Error ending collaboration ${collaboration.id}", e)
+                    }
                 }
             }
             
             // Reset agent statuses
             _orchestrationState.value.activeAgents.forEach { agent ->
-                try {
-                    updateAgentStatus(agent.id, AgentStatus.IDLE)
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error resetting agent ${agent.id} status", e)
+                applicationScope.launch { // Launch in applicationScope for fire-and-forget
+                    try {
+                        updateAgentStatus(agent.id, AgentStatus.IDLE)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Error resetting agent ${agent.id} status", e)
+                    }
                 }
             }
             

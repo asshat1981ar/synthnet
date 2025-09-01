@@ -1,0 +1,87 @@
+# MCP Testing Framework - Test Runner Docker Image
+# Provides a complete testing environment for MCP servers
+
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV TERM=xterm-256color
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    nodejs \
+    npm \
+    sqlite3 \
+    graphviz \
+    libgraphviz-dev \
+    pkg-config \
+    gcc \
+    g++ \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt /app/
+COPY requirements-test.txt /app/
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements-test.txt
+
+# Install additional testing tools
+RUN pip install --no-cache-dir \
+    pytest \
+    pytest-asyncio \
+    pytest-cov \
+    pytest-html \
+    pytest-json-report \
+    pytest-xdist \
+    coverage \
+    bandit \
+    safety \
+    flake8 \
+    black \
+    isort \
+    mypy \
+    pre-commit
+
+# Install Node.js testing tools
+RUN npm install -g \
+    typescript \
+    ts-node \
+    @types/node \
+    mocha \
+    jest \
+    eslint \
+    prettier
+
+# Copy the testing framework
+COPY . /app/
+
+# Create directories for test results and data
+RUN mkdir -p /app/test_results \
+    /app/test_data \
+    /app/logs \
+    /app/reports
+
+# Set up proper permissions
+RUN chmod +x /app/scripts/*.sh
+
+# Create a non-root user for running tests
+RUN useradd -m -u 1000 testuser && \
+    chown -R testuser:testuser /app
+USER testuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)"
+
+# Default command
+CMD ["python", "-m", "mcp_testing_framework.core.test_runner", "--help"]
