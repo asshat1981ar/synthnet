@@ -1,0 +1,13 @@
+{
+  "cycle": 220,
+  "timestamp": "2025-09-01T13:49:56.723194",
+  "pipeline_results": {
+    "triage": 0.0,
+    "localization": 0.0,
+    "generation": 0.0,
+    "validation": 0.0
+  },
+  "patches_applied": 0,
+  "total_patches": 0,
+  "learning_update": true
+}
