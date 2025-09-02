@@ -1,0 +1,178 @@
+{
+  "name": "Android Development with Semantic CoT",
+  "active": true,
+  "nodes": [
+    {
+      "id": "webhook_trigger",
+      "type": "Webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        100
+      ],
+      "name": "Development Request",
+      "parameters": {
+        "path": "android-dev",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "semantic_cot_reasoning",
+      "type": "HTTP Request",
+      "typeVersion": 2,
+      "position": [
+        300,
+        100
+      ],
+      "name": "Semantic CoT Analysis",
+      "parameters": {
+        "url": "http://localhost:8772/mcp",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": {
+            "method": "tools/call",
+            "params": {
+              "name": "semantic_cot_reasoning",
+              "arguments": {
+                "objective": "={{ $json.objective }}",
+                "context": "={{ $json.context }}",
+                "constraints": "={{ $json.constraints }}"
+              }
+            }
+          }
+        },
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "synthnet_hub_integration",
+      "type": "HTTP Request",
+      "typeVersion": 2,
+      "position": [
+        500,
+        100
+      ],
+      "name": "SynthNet Android Hub",
+      "parameters": {
+        "url": "http://localhost:8767/mcp",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": {
+            "method": "tools/call",
+            "params": {
+              "name": "create_app_from_description",
+              "arguments": {
+                "description": "={{ $json.reasoning_chain.objective }}",
+                "quality_level": "BALANCED",
+                "semantic_context": "={{ $json.reasoning_chain.semantic_context }}"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "response_formatting",
+      "type": "Function",
+      "typeVersion": 1,
+      "position": [
+        700,
+        100
+      ],
+      "name": "Format Response",
+      "parameters": {
+        "jsCode": "return {\n  workflow_id: $input.all()[0].workflow_id,\n  reasoning_chain: $input.all()[0].reasoning_chain,\n  app_generation_result: $input.all()[1].result,\n  timestamp: new Date().toISOString(),\n  semantic_coherence: $input.all()[0].semantic_coherence_score\n};"
+      }
+    },
+    {
+      "id": "webhook_response",
+      "type": "Respond to Webhook",
+      "typeVersion": 1,
+      "position": [
+        900,
+        100
+      ],
+      "name": "Send Response",
+      "parameters": {
+        "httpStatusCode": 200,
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "webhook_trigger": {
+      "main": [
+        [
+          {
+            "node": "semantic_cot_reasoning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "semantic_cot_reasoning": {
+      "main": [
+        [
+          {
+            "node": "synthnet_hub_integration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "synthnet_hub_integration": {
+      "main": [
+        [
+          {
+            "node": "response_formatting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "response_formatting": {
+      "main": [
+        [
+          {
+            "node": "webhook_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "variables": {
+    "semantic_reasoning_enabled": true,
+    "quality_level": "BALANCED",
+    "timeout_seconds": 300
+  },
+  "settings": {
+    "saveExecutionProgress": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredit": "SynthNet MCP Ecosystem",
+    "description": "Intelligent Android app development using semantic Chain-of-Thought reasoning",
+    "domain": "android_development",
+    "complexity_level": "balanced",
+    "semantic_requirements": {
+      "reasoning_depth": "comprehensive",
+      "context_preservation": true,
+      "semantic_validation": true
+    },
+    "generated_at": "2025-09-02T12:13:06.506197"
+  }
+}

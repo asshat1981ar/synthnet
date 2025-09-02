@@ -1,0 +1,187 @@
+{
+  "name": "Comprehensive Semantic Analysis",
+  "active": true,
+  "nodes": [
+    {
+      "id": "manual_trigger",
+      "type": "Manual Trigger",
+      "typeVersion": 1,
+      "position": [
+        100,
+        100
+      ],
+      "name": "Start Analysis"
+    },
+    {
+      "id": "data_input",
+      "type": "Edit Fields",
+      "typeVersion": 1,
+      "position": [
+        300,
+        100
+      ],
+      "name": "Prepare Analysis Data",
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "concepts",
+              "type": "string"
+            },
+            {
+              "name": "analysis_type",
+              "type": "string"
+            },
+            {
+              "name": "semantic_context",
+              "type": "object"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "semantic_concept_analysis",
+      "type": "HTTP Request",
+      "typeVersion": 2,
+      "position": [
+        500,
+        100
+      ],
+      "name": "Semantic Concept Analysis",
+      "parameters": {
+        "url": "http://localhost:8772/mcp",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": {
+            "method": "tools/call",
+            "params": {
+              "name": "semantic_concept_analysis",
+              "arguments": {
+                "concepts": "={{ $json.concepts }}",
+                "analysis_type": "={{ $json.analysis_type }}"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "bridge_integration",
+      "type": "HTTP Request",
+      "typeVersion": 2,
+      "position": [
+        500,
+        250
+      ],
+      "name": "n8n-MCP Bridge Enhancement",
+      "parameters": {
+        "url": "http://localhost:8773/mcp",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": {
+            "method": "tools/call",
+            "params": {
+              "name": "create_semantic_template",
+              "arguments": {
+                "domain": "semantic_analysis",
+                "use_case": "concept_analysis",
+                "complexity_level": "advanced"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "results_merger",
+      "type": "Merge",
+      "typeVersion": 2,
+      "position": [
+        700,
+        175
+      ],
+      "name": "Merge Analysis Results",
+      "parameters": {
+        "mode": "mergeByIndex"
+      }
+    }
+  ],
+  "connections": {
+    "manual_trigger": {
+      "main": [
+        [
+          {
+            "node": "data_input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "data_input": {
+      "main": [
+        [
+          {
+            "node": "semantic_concept_analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "bridge_integration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "semantic_concept_analysis": {
+      "main": [
+        [
+          {
+            "node": "results_merger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "bridge_integration": {
+      "main": [
+        [
+          {
+            "node": "results_merger",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "variables": {
+    "analysis_depth": "comprehensive",
+    "bridge_enhancement": true
+  },
+  "settings": {
+    "saveExecutionProgress": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredit": "SynthNet MCP Ecosystem",
+    "description": "Deep semantic analysis with concept relationships and bridge enhancement",
+    "domain": "semantic_analysis",
+    "complexity_level": "advanced",
+    "semantic_requirements": {
+      "concept_mapping": true,
+      "relationship_analysis": true,
+      "cross_domain_insights": true
+    },
+    "generated_at": "2025-09-02T12:13:06.507834"
+  }
+}

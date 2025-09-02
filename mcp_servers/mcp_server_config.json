@@ -1,0 +1,58 @@
+{
+  "mcpServers": {
+    "github-copilot": {
+      "command": "python3",
+      "args": [
+        "/data/data/com.termux/files/home/synthnet/mcp_servers/github_copilot_mcp_server.py"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "GITHUB_USERNAME": "${GITHUB_USERNAME}"
+      },
+      "description": "GitHub Copilot integration MCP server for repository access and basic operations",
+      "capabilities": [
+        "repository_info",
+        "file_browsing",
+        "content_retrieval"
+      ]
+    },
+    "github-tools": {
+      "command": "python3", 
+      "args": [
+        "/data/data/com.termux/files/home/synthnet/mcp_servers/github_tools_mcp_server.py"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "GITHUB_USERNAME": "${GITHUB_USERNAME}",
+        "SYNTHNET_WORKSPACE": "/data/data/com.termux/files/home/synthnet/workspace"
+      },
+      "description": "Advanced GitHub tools MCP server for development workflows, CI/CD, and code analysis",
+      "capabilities": [
+        "repository_creation",
+        "fork_management", 
+        "pull_requests",
+        "code_analysis",
+        "github_actions",
+        "secret_management",
+        "local_sync"
+      ]
+    }
+  },
+  "termux_optimizations": {
+    "python_path": "/data/data/com.termux/files/usr/bin/python3",
+    "workspace_permissions": "755",
+    "log_retention_days": 7,
+    "max_concurrent_operations": 3
+  },
+  "github_api_settings": {
+    "base_url": "https://api.github.com",
+    "timeout_seconds": 30,
+    "retry_attempts": 3,
+    "rate_limit_buffer": 100
+  },
+  "security": {
+    "require_token": true,
+    "validate_ssl": true,
+    "mask_sensitive_logs": true
+  }
+}

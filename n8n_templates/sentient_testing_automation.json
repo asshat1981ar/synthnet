@@ -1,0 +1,198 @@
+{
+  "name": "Sentient Testing Ecosystem Automation",
+  "active": true,
+  "nodes": [
+    {
+      "id": "cron_trigger",
+      "type": "Cron",
+      "typeVersion": 1,
+      "position": [
+        100,
+        100
+      ],
+      "name": "Schedule Testing",
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */4 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "project_analysis",
+      "type": "Function",
+      "typeVersion": 1,
+      "position": [
+        300,
+        100
+      ],
+      "name": "Analyze Project Context",
+      "parameters": {
+        "jsCode": "return {\n  project_path: '/data/data/com.termux/files/home/synthnet',\n  analysis_timestamp: new Date().toISOString(),\n  testing_requirements: {\n    population_size: 50,\n    generations: 20,\n    mutation_rate: 0.1\n  }\n};"
+      }
+    },
+    {
+      "id": "evolutionary_test_generation",
+      "type": "HTTP Request",
+      "typeVersion": 2,
+      "position": [
+        500,
+        100
+      ],
+      "name": "Generate Evolutionary Tests",
+      "parameters": {
+        "url": "http://localhost:8770/mcp",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": {
+            "method": "tools/call",
+            "params": {
+              "name": "generate_evolutionary_tests",
+              "arguments": {
+                "project_path": "={{ $json.project_path }}",
+                "requirements": "={{ $json.testing_requirements }}"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "defect_prediction",
+      "type": "HTTP Request",
+      "typeVersion": 2,
+      "position": [
+        500,
+        250
+      ],
+      "name": "Predict Defects",
+      "parameters": {
+        "url": "http://localhost:8770/mcp",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": {
+            "method": "tools/call",
+            "params": {
+              "name": "predict_defects",
+              "arguments": {
+                "project_path": "={{ $json.project_path }}"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "sentient_execution",
+      "type": "HTTP Request",
+      "typeVersion": 2,
+      "position": [
+        700,
+        175
+      ],
+      "name": "Execute Sentient Testing",
+      "parameters": {
+        "url": "http://localhost:8770/mcp",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": {
+            "method": "tools/call",
+            "params": {
+              "name": "execute_sentient_testing",
+              "arguments": {
+                "project_path": "={{ $('project_analysis').item.json.project_path }}",
+                "test_config": {
+                  "test_suite": "={{ $('evolutionary_test_generation').item.json.test_suite }}",
+                  "defect_predictions": "={{ $('defect_prediction').item.json }}"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "cron_trigger": {
+      "main": [
+        [
+          {
+            "node": "project_analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "project_analysis": {
+      "main": [
+        [
+          {
+            "node": "evolutionary_test_generation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "defect_prediction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "evolutionary_test_generation": {
+      "main": [
+        [
+          {
+            "node": "sentient_execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "defect_prediction": {
+      "main": [
+        [
+          {
+            "node": "sentient_execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "variables": {
+    "testing_schedule": "every_4_hours",
+    "evolutionary_enabled": true,
+    "self_healing": true
+  },
+  "settings": {
+    "saveExecutionProgress": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredit": "SynthNet MCP Ecosystem",
+    "description": "Automated testing with evolutionary algorithms and defect prediction",
+    "domain": "software_testing",
+    "complexity_level": "enterprise",
+    "semantic_requirements": {
+      "test_evolution": true,
+      "defect_correlation": true,
+      "adaptive_execution": true
+    },
+    "generated_at": "2025-09-02T12:13:06.509367"
+  }
+}

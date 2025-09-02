@@ -1,0 +1,191 @@
+{
+  "name": "Architecture Intelligence Analysis",
+  "active": true,
+  "nodes": [
+    {
+      "id": "webhook_trigger",
+      "type": "Webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        100
+      ],
+      "name": "Architecture Analysis Request",
+      "parameters": {
+        "path": "architecture-analysis",
+        "httpMethod": "POST"
+      }
+    },
+    {
+      "id": "architecture_analysis",
+      "type": "HTTP Request",
+      "typeVersion": 2,
+      "position": [
+        300,
+        100
+      ],
+      "name": "Analyze Architecture",
+      "parameters": {
+        "url": "http://localhost:8769/mcp",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": {
+            "method": "tools/call",
+            "params": {
+              "name": "analyze_architecture",
+              "arguments": {
+                "project_path": "={{ $json.project_path }}"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "if_evolution_needed",
+      "type": "If",
+      "typeVersion": 1,
+      "position": [
+        500,
+        100
+      ],
+      "name": "Evolution Needed?",
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.architecture_dna.fitness_score }}",
+              "operation": "smaller",
+              "value2": 0.8
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evolve_architecture",
+      "type": "HTTP Request",
+      "typeVersion": 2,
+      "position": [
+        700,
+        50
+      ],
+      "name": "Evolve Architecture",
+      "parameters": {
+        "url": "http://localhost:8769/mcp",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": {
+            "method": "tools/call",
+            "params": {
+              "name": "evolve_architecture",
+              "arguments": {
+                "project_path": "={{ $('webhook_trigger').item.json.project_path }}",
+                "feedback": {
+                  "performance": 0.7,
+                  "maintainability": 0.6,
+                  "scalability": 0.8
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "pattern_recommendations",
+      "type": "HTTP Request",
+      "typeVersion": 2,
+      "position": [
+        700,
+        150
+      ],
+      "name": "Get Pattern Recommendations",
+      "parameters": {
+        "url": "http://localhost:8769/mcp",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": {
+            "method": "tools/call",
+            "params": {
+              "name": "get_pattern_recommendations",
+              "arguments": {
+                "project_path": "={{ $('webhook_trigger').item.json.project_path }}"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "webhook_trigger": {
+      "main": [
+        [
+          {
+            "node": "architecture_analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "architecture_analysis": {
+      "main": [
+        [
+          {
+            "node": "if_evolution_needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if_evolution_needed": {
+      "main": [
+        [
+          {
+            "node": "evolve_architecture",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "pattern_recommendations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "variables": {
+    "fitness_threshold": 0.8,
+    "evolution_enabled": true,
+    "pattern_analysis": "comprehensive"
+  },
+  "settings": {
+    "saveExecutionProgress": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredit": "SynthNet MCP Ecosystem",
+    "description": "Intelligent architecture analysis with SCAMPER, TRIZ, and genetic evolution",
+    "domain": "software_architecture",
+    "complexity_level": "enterprise",
+    "semantic_requirements": {
+      "architecture_dna": true,
+      "pattern_evolution": true,
+      "six_thinking_hats": true
+    },
+    "generated_at": "2025-09-02T12:13:06.510765"
+  }
+}
